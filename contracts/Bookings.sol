@@ -1,0 +1,225 @@
+pragma solidity ^0.4.18;
+
+contract Bookings {
+    
+    enum BookingStatus {
+        CANCELED,
+        CONFIRMED,    
+        PENDING
+    }
+	struct BookingData {
+	    address customer;
+	    uint roomId;
+	    uint startDate;
+	    uint endDate;
+	    uint amountPaid;
+	    BookingStatus status;
+	}
+	
+	struct Room {
+	    address owner;
+	    uint roomId;
+	    uint priceCancellable;
+	    uint price;
+	    bool[] booked;
+	}
+	uint public currentRoomId = 0;
+	uint96 public numBooking = 0;
+    Room[10] public roomList;
+	mapping(bytes32 => BookingData) public freeCancellations;
+	mapping(bytes32 => BookingData) public bookings;
+	
+	uint public dateStart = now;
+	mapping(address => bytes32[]) userBookings;
+
+	event FreeCancel(bytes32 bookingId);
+	event Cancelled(bytes32 bookingId);
+	event Booked(bytes32 bookingId);
+
+    // **************
+    // PUBLIC METHODS
+    // **************
+    
+    // No cancellation
+	function booking(uint roomId, uint start, uint end) payable public returns (bytes32)
+	{
+	    // Make sure the roomId exist and the date are usable
+        require(currentRoomId > 0 && roomId >= 0 && roomId < currentRoomId && start < end && dateStart <= start);
+        
+        // Do not proceed if the price of the booking is wrong
+        if (msg.value != roomList[roomId].price)
+        {
+            revert();
+        }
+        
+        // Mark the room as booked for the days of the booking
+        uint dayStart;
+        uint dayEnd;
+        (dayStart, dayEnd) =  markAsBooked(roomId, start, end);
+        
+        // Save the booking data
+        bytes32 bookingId = generateBookingId(msg.sender);
+        bookings[bookingId] = BookingData(msg.sender, roomId, dayStart, dayEnd, msg.value, BookingStatus.CONFIRMED);
+        
+        // Transfer the money to the hotel owner
+        roomList[roomId].owner.transfer(msg.value);
+        
+        // Push the booking ID for the user
+        userBookings[msg.sender].push(bookingId);
+
+        Booked(bookingId);
+
+        return bookingId;
+	}
+	
+	// Free cancellation
+	function freeCancellation(uint roomId, uint start, uint end) payable public returns (bytes32)
+	{
+	    // Make sure the roomId exist and the date are usable
+        require(roomId >= 0 && roomId <= currentRoomId && start < end && dateStart <= start);
+        
+        // Do not proceed if the price of the booking is wrong
+        if (msg.value != roomList[roomId].priceCancellable)
+        {
+            revert('Wrong booking price');
+        }
+        
+        // Mark the room as booked for the days of the booking
+        uint dayStart;
+        uint dayEnd;
+        (dayStart, dayEnd) =  markAsBooked(roomId, start, end);
+        
+        // Save the booking data
+        bytes32 bookingId = generateBookingId(msg.sender);
+        freeCancellations[bookingId] = BookingData(msg.sender, roomId, dayStart, dayEnd, msg.value, BookingStatus.PENDING);
+	
+	    // Push the booking ID for the user
+        userBookings[msg.sender].push(bookingId);
+
+        
+        FreeCancel(bookingId);
+
+        return bookingId;
+	}
+	
+	function cancel(bytes32 bookingId) public
+	{
+	    // Get the booking
+        BookingData bookingData = freeCancellations[bookingId];
+        if (bookingData.customer != msg.sender)
+            revert('Not the owner of the booking');
+        else if (bookingData.status != BookingStatus.PENDING)
+            revert('Booking already canceled');
+            
+        // Mark the room as available
+	    markAsAvailable(bookingData.roomId, bookingData.startDate, bookingData.endDate);
+	    
+	    // Transfer the money back to the customer
+        msg.sender.transfer(bookingData.amountPaid);
+        
+        Cancelled(bookingId);
+
+        // Mark the booking as canceled
+        freeCancellations[bookingId].status = BookingStatus.CANCELED;
+	}
+	
+	// Check if a room is available for the given dates
+	function isAvailableForDates(uint roomId, uint start, uint end) 
+		public 
+		returns (bool)
+	{
+	    // Convert the date to day number (0 being the date the contract was deployed)
+        uint dayStart = convertToDayNumber(start);	
+        uint dayEnd = convertToDayNumber(end);
+        
+        // Delegate the call 
+        return isAvailableForDayNumbers(roomId, dayStart, dayEnd);
+	}
+	
+	function addRoom(uint price, uint priceCancellable) 
+		public 
+		returns (uint) 
+	{
+	    uint weiPriceCancellable = priceCancellable * 1000000000000000000;
+	    uint weiPrice = price * 1000000000000000000;
+	    roomList[currentRoomId] = Room(msg.sender, currentRoomId, weiPriceCancellable, weiPrice, new bool[](365));
+	    currentRoomId = currentRoomId + 1;
+	    return currentRoomId;
+	}
+
+	function getRoom(uint roomId) 
+		public 
+		returns (uint priceCancellable, uint price, bool[] booked) {
+	    return (roomList[roomId].priceCancellable, roomList[roomId].price, roomList[roomId].booked);
+	}
+	
+	// **************
+    // PRIVATE METHODS
+    // **************
+    
+    // Generate unique booking ID 
+	function generateBookingId(address senderAddress)
+        internal
+        returns (bytes32)
+    {
+        // Update numBooking
+        numBooking = numBooking + 1;
+        // requestId = ADDRESS_SENDER+ numRequests (0xADRRESSSENDER00000NUMREQUEST)
+        return bytes32((uint256(senderAddress) << 96) + numBooking);
+    }
+    
+    // Convert dae to day number (0 being the contract creation day)
+    function convertToDayNumber(uint date) 
+    	internal 
+    	returns (uint)
+	{
+	    return (date - dateStart) / 60 / 60 / 24;
+	}
+    
+    // Check whether the room is available for the given day numbers
+    function isAvailableForDayNumbers(uint roomId, uint dayStart, uint dayEnd) 
+    	internal 
+    	returns (bool)
+	{
+        for (uint i = dayStart; i <= dayEnd ; i++)
+        {
+            if (roomList[roomId].booked[i])
+                return false;
+        }
+        return true;
+	}
+	
+	// Marks the room as booked
+	function markAsBooked(uint roomId, uint start, uint end) 
+		internal 
+		returns (uint, uint) 
+	{
+	    // Convert the date to day number (0 being the date the contract was deployed)
+        uint dayStart = convertToDayNumber(start);	
+        uint dayEnd = convertToDayNumber(end);
+        
+        // Check if the room is available
+        if (!isAvailableForDayNumbers(roomId, dayStart, dayEnd))
+            revert('Room not available');
+            
+        // Mark as booked
+        for (uint i = dayStart; i <= dayEnd ; i++)
+        {
+            roomList[roomId].booked[i] = true;
+        }
+        
+        // Return the day numbers
+        return (dayStart, dayEnd);
+	}
+	
+	// Marks the room as available
+	function markAsAvailable(uint roomId, uint dayStart, uint dayEnd) 
+		internal
+	{
+        // Mark as available
+        for (uint i = dayStart; i <= dayEnd ; i++)
+        {
+            roomList[roomId].booked[i] = false;
+        }
+	}
+}
