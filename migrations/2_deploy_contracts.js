@@ -1,5 +1,6 @@
-var Bookings = artifacts.require("Bookings");
+var Hotel = artifacts.require("Hotel");
+var HotelFactory = artifacts.require("HotelFactory");
 
 module.exports = function(deployer) {
-  deployer.deploy(Bookings);
+  deployer.deploy(HotelFactory);
 };

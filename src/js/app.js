@@ -1,6 +1,8 @@
 App = {
   web3Provider: null,
   contracts: {},
+  instances: {},
+  BookingArtifact: null,
 
   init: function() {
     // Load pets.
@@ -34,27 +36,76 @@ App = {
     }
     web3 = new Web3(App.web3Provider);
     window.web3 = web3;
-    return App.initContract();
+    App.initContract();
   },
 
   initContract: function() {
-     $.getJSON('Bookings.json', function(data) {
+    $.getJSON('HotelFactory.json', function(data) {
       // Get the necessary contract artifact file and instantiate it with truffle-contract
-      var BookingArtifact = data;
-      App.contracts.Booking = TruffleContract(BookingArtifact);
+      var FactoryArtifact = data;
+      App.contracts.Factory = TruffleContract(FactoryArtifact);
 
       // Set the provider for our contract
-      App.contracts.Booking.setProvider(App.web3Provider);
+      App.contracts.Factory.setProvider(App.web3Provider);
 
-      // Use our contract to retrieve and mark the adopted pets
-      //return App.markAdopted();
-      });
-    return App.bindEvents();
+      // Set the contract instance
+      App.contracts.Factory.deployed().then(function(factoryInstance) { 
+        App.instances.Factory = factoryInstance;
+      }); 
+    });
+    $.getJSON('Hotel.json', function(data) {
+      App.contracts.Hotel = TruffleContract(data);
+      App.contracts.Hotel.setProvider(App.web3Provider);
+    });
+    App.bindEvents();
+
+    App.listHotel();
   },
 
   bindEvents: function() {
-    $(document).on('click', '.btn-adopt', App.book);
+    $(document).on('click', '.btn-book', App.book);
     $(document).on('click', '.btn-getBalance', App.getBalance);
+    $(document).on('click', '.btn-addRoom', App.addRoom);
+    $(document).on('click', '.btn-createHotel', App.createHotel);
+    $(document).on('click', '.btn-listHotel', App.listHotel);
+  },
+
+  createHotel: function() {
+    db.collection("users").add({
+      first: "Ada",
+      last: "Lovelace",
+      born: 1815
+    })
+    .then(function(docRef) {
+        console.log("Document written with ID: ", docRef.id);
+    })
+    .catch(function(error) {
+        console.error("Error adding document: ", error);
+    });
+    var hotelName = $('#hotelName').val();
+    if (App.instances.Factory == null)
+    {
+      console.log("Factory not loaded");
+      return;
+    }
+    App.instances.Factory.createContract(hotelName).then((res) => {
+      console.log("Hotel successfully created at address " + res.logs[0].args.contractAddress);
+    })
+    App.listHotel();
+  },
+
+  listHotel: function() {
+    if (App.instances.Factory == null)
+    {
+      console.log("Factory not loaded");
+      return;
+    }
+    App.instances.Factory.listHotel.call().then((res) => {
+      var options = "";
+      res.forEach(address => options = options + `<option value="${address}">${address}</option>`);
+      $(".hotelSelector").html(options);
+      //console.log(res);
+    })
   },
 
   getBalance: function() {
@@ -63,38 +114,44 @@ App = {
     var meta;
     App.contracts.Booking.deployed().then(function(instance) {
       meta = instance;
-      return web3.eth.getBalance("0xFcaD0ca9C3BEfC0Ec8acCA441260a5795648c9b5", function(err, transactionHash) {
+      return web3.eth.getBalance(instance.address, function(err, transactionHash) {
         if (!err)
           console.log(transactionHash.c[0]); 
       });
     });
   },
 
-  book: function(event){
-    var roomId = parseInt($(event.target).data('id'));
-    var price = parseInt($(event.target).data('price'));
-    web3.eth.getAccounts(function(error, accounts) {
-        if (error) {
-          console.log(error);
-        }
-        console.log(price);
-        console.log(roomId);
-        var bookingInstance;
-        App.contracts.Booking.deployed().then(function(instance) {
-          bookingInstance = instance;
-          return bookingInstance.freeCancellation(
-            roomId,
-            {
-              gas: 300000,
-              from: web3.eth.coinbase,
-              value: web3.toWei(price, 'ether')
-            }).then((res) => {
-              console.log("Booking successful");
-            }).catch((error) => {
-              console.log(error.message);
-            });
-        });
+  addRoom: function(){
+    var price = $('#price').val();
+    var cancellable = $('#cancellable').val();
+    var address = $('#addRoomAddress').val();
+
+    var hotelContract = App.contracts.Hotel.at(address);
+    console.log(hotelContract);
+    hotelContract.addRoom(price, cancellable)
+      .then((res) => {
+        console.log("Room added successfully")
+      }).catch((err) => {
+        console.error(err.message);
       });
+  },
+
+  book: function(){
+    var address = $('#bookRoomAddress').val();
+    var roomId = $('#roomId').val();
+    var hotelContract = App.contracts.Hotel.at(address);
+    hotelContract.freeCancellation(
+      roomId, 
+      1, 
+      4, 
+      {
+        value: web3.toWei(7, 'ether')
+      })
+    .then((res) => {
+      console.log("Booking successful");
+    }).catch((err) => {
+      console.log(err.message);
+    });
   },
 },
 
