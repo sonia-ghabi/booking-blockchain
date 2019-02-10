@@ -3,6 +3,7 @@ pragma solidity ^0.5.0;
 contract HotelFactory {
     address[] hotelContracts;
     mapping(address => address[]) public hotelOwnerships;
+    string public myString = "Hello World";
 
     event newHotelEvent(address contractAddress);
 

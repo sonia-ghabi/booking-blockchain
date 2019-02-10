@@ -1,5 +1,5 @@
 {
-  "name": "pet-shop",
+  "name": "booking-blockchain",
   "version": "1.0.0",
   "description": "",
   "main": "truffle.js",
@@ -7,17 +7,12 @@
     "test": "test"
   },
   "scripts": {
-    "dev": "lite-server",
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate": "rimraf build; truffle migrate"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
-    "lite-server": "^2.3.0"
-  },
-  "dependencies": {
-    "firebase": "^5.8.2",
     "rimraf": "^2.6.3"
   }
 }
