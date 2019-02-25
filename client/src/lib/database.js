@@ -1,4 +1,4 @@
-import firebase from "firebase";
+import firebase from 'firebase';
 
 export default class Database {
   static instance;
@@ -16,11 +16,14 @@ export default class Database {
       storageBucket: process.env.REACT_APP_STORAGEBUCKET,
       messagingSenderId: process.env.REACT_APP_MESSAGINGSENDERID
     };
-    console.log(config);
     firebase.initializeApp(config);
 
     this.db = firebase.firestore();
     Database.instance = this;
+  }
+
+  getDB() {
+    return this.db;
   }
 
   writeData(collectionName, object, id = null) {
