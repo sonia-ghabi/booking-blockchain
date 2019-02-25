@@ -1,9 +1,9 @@
-import Web3 from "web3";
-import TruffleContract from "truffle-contract";
-import Hotel from "../contracts/Hotel.json";
-import HotelFactory from "../contracts/HotelFactory.json";
+import Web3 from 'web3';
+import TruffleContract from 'truffle-contract';
+import Hotel from '../contracts/Hotel.json';
+import HotelFactory from '../contracts/HotelFactory.json';
 
-const NETWORK_ADDR = "http://localhost:7545";
+const NETWORK_ADDR = 'http://localhost:7545';
 
 export default class Contracts {
   static instance;
@@ -15,11 +15,11 @@ export default class Contracts {
 
     const ethereum = window.ethereum;
     ethereum.enable().then(enArr => {
-      if (typeof ethereum !== "undefined") {
+      if (typeof ethereum !== 'undefined') {
         this.web3 = new Web3(ethereum);
         this.address = enArr[0];
       } else {
-        console.log("No web3? You should consider trying MetaMask!");
+        console.log('No web3? You should consider trying MetaMask!');
         // fallback - use your fallback strategy (local node / hosted node + in-dapp id mgmt / fail)
         this.web3 = new Web3(new Web3.providers.HttpProvider(NETWORK_ADDR));
         this.address = this.web3.eth.defaultAccount;
@@ -44,21 +44,22 @@ export default class Contracts {
 
   async createHotel(hotelName) {
     hotelName = this.web3.utils.asciiToHex(hotelName);
-    if (!this.instances.Factory) {
-      throw new Error("Factory contract not loaded");
+    if (!this.instances || !this.instances.Factory) {
+      throw new Error('Factory contract not loaded');
     }
-    const bla = await this.execute(
+    const txReceipt = await this.execute(
       this.instances.Factory.createContract,
       hotelName
     );
-    return bla.logs[0].args.contractAddress;
+    return txReceipt.logs[0].args.contractAddress;
   }
 
   listHotel() {
-    if (this.instances.Factory) {
-      throw new Error("Factory contract not loaded");
+    if (!this.instances || !this.instances.Factory) {
+      throw new Error('Factory contract not loaded');
     }
-    return this.instances.Factory.listHotel.call();
+    console.log(window.web3.eth.defaultAccount);
+    return this.execute(this.instances.Factory.listHotel);
   }
 
   /*getBalance() {
@@ -74,9 +75,16 @@ export default class Contracts {
   }*/
 
   async addRoom(price, cancellable, address) {
+    const weiPrice = this.web3.utils.toWei(price);
+    const weiCancellable = this.web3.utils.toWei(cancellable);
     const hotelContract = await this.contracts.Hotel.at(address);
     try {
-      return this.execute(hotelContract.addRoom, price, cancellable);
+      const txReceipt = await this.execute(
+        hotelContract.addRoom,
+        weiPrice,
+        weiCancellable
+      );
+      return txReceipt.logs[0].args.roomId.toString(10);
     } catch (e) {
       console.error(e);
     }
@@ -93,23 +101,38 @@ export default class Contracts {
     const hotelContract = await this.contracts.Hotel.at(hotelAddress);
     const toCall = isCancellableBooking
       ? hotelContract.freeCancellation
-      : hotelContract.book;
+      : hotelContract.booking;
     try {
+      console.log(hotelContract);
       await this.executeWithMoney(toCall, price, roomId, dateStart, dateEnd);
     } catch (e) {
       console.error(e);
+      throw e;
+    }
+  }
+
+  async checkAvailability(hotelAddress, roomId, start, end) {
+    const hotelContract = await this.contracts.Hotel.at(hotelAddress);
+    console.log(hotelAddress);
+    console.log(roomId);
+    console.log(start);
+    console.log(end);
+    try {
+      return await hotelContract.isAvailableForDates.call(roomId, start, end);
+    } catch (e) {
+      console.error(e);
+      throw e;
     }
   }
 
   execute(func, ...param) {
-    console.log(param);
     return func(...param, { from: this.address });
   }
 
   executeWithMoney(func, price, ...param) {
     const req = {
       from: this.address,
-      value: this.web3.toWei(price, "ether")
+      value: this.web3.utils.toWei(price, 'ether')
     };
     return func(...param, req);
   }
