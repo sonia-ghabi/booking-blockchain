@@ -1,34 +1,34 @@
-import React, { Component } from 'react';
-import Button from '@material-ui/core/Button';
-import TextField from '@material-ui/core/TextField';
-import AppBar from '@material-ui/core/AppBar';
-import Toolbar from '@material-ui/core/Toolbar';
-import Typography from '@material-ui/core/Typography';
-import Paper from '@material-ui/core/Paper';
-import CssBaseline from '@material-ui/core/CssBaseline';
-import withStyles from '@material-ui/core/styles/withStyles';
-import InputLabel from '@material-ui/core/InputLabel';
-import MenuItem from '@material-ui/core/MenuItem';
-import FormControl from '@material-ui/core/FormControl';
-import Select from '@material-ui/core/Select';
-import { Redirect } from 'react-router';
+import React, { Component } from "react";
+import Button from "@material-ui/core/Button";
+import TextField from "@material-ui/core/TextField";
+import AppBar from "@material-ui/core/AppBar";
+import Toolbar from "@material-ui/core/Toolbar";
+import Typography from "@material-ui/core/Typography";
+import Paper from "@material-ui/core/Paper";
+import CssBaseline from "@material-ui/core/CssBaseline";
+import withStyles from "@material-ui/core/styles/withStyles";
+import InputLabel from "@material-ui/core/InputLabel";
+import MenuItem from "@material-ui/core/MenuItem";
+import FormControl from "@material-ui/core/FormControl";
+import Select from "@material-ui/core/Select";
+import { Redirect } from "react-router";
 
-import Header from './components/header';
-import Contracts from './lib/contracts';
-import Database from './lib/database.js';
+import Header from "./components/header";
+import Contracts from "./lib/contracts";
+import Database from "./lib/database.js";
 
 const styles = theme => ({
   appBar: {
-    position: 'relative'
+    position: "relative"
   },
   layout: {
-    width: 'auto',
+    width: "auto",
     marginLeft: theme.spacing.unit * 2,
     marginRight: theme.spacing.unit * 2,
     [theme.breakpoints.up(600 + theme.spacing.unit * 2 * 2)]: {
       width: 600,
-      marginLeft: 'auto',
-      marginRight: 'auto'
+      marginLeft: "auto",
+      marginRight: "auto"
     }
   },
   paper: {
@@ -42,11 +42,11 @@ const styles = theme => ({
     }
   },
   starsSelect: {
-    minWidth: '120px'
+    minWidth: "120px"
   },
   buttonWrapper: {
-    display: 'flex',
-    justifyContent: 'flex-end'
+    display: "flex",
+    justifyContent: "flex-end"
   },
   button: {
     marginTop: theme.spacing.unit * 3,
@@ -62,14 +62,12 @@ class HotelCreation extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      hotelName: '',
+      hotelName: "",
       hotelId: null,
-      hotelDescription: '',
+      hotelDescription: "",
       hotelStars: 0,
-      error: ''
+      error: ""
     };
-    this.contracts = new Contracts();
-    this.db = new Database();
   }
 
   handleChange = key => event => {
@@ -81,17 +79,17 @@ class HotelCreation extends Component {
   async saveHotel() {
     const { hotelName, hotelDescription, hotelStars } = this.state;
     if (!hotelName || !hotelDescription || !hotelStars) {
-      this.setState({ error: 'Missing required field.' });
+      this.setState({ error: "Missing required field." });
       return;
     }
-    const address = await this.contracts.createHotel(
+    const address = await Contracts.createHotel(
       hotelName,
       hotelDescription,
       hotelStars
     );
     if (address) {
-      await this.db.writeData(
-        'hotel',
+      await Database.writeData(
+        "hotel",
         {
           id: address,
           name: this.state.hotelName,
@@ -115,7 +113,7 @@ class HotelCreation extends Component {
     );
     return (
       <>
-        {hotelId ? <Redirect to={`manage/${hotelId}`} /> : ''}
+        {hotelId ? <Redirect to={`manage/${hotelId}`} /> : ""}
         <Header />
         <main className={classes.layout}>
           <Paper className={classes.paper}>
@@ -126,7 +124,7 @@ class HotelCreation extends Component {
             <TextField
               label="Hotel Name"
               value={this.state.hotelName}
-              onChange={this.handleChange('hotelName')}
+              onChange={this.handleChange("hotelName")}
               fullWidth
               autoComplete="fname"
               required
@@ -136,7 +134,7 @@ class HotelCreation extends Component {
               multiline
               rows="5"
               value={this.state.hotelDescription}
-              onChange={this.handleChange('hotelDescription')}
+              onChange={this.handleChange("hotelDescription")}
               margin="normal"
               variant="outlined"
               fullWidth
@@ -149,7 +147,7 @@ class HotelCreation extends Component {
                 required
                 className={classes.starsSelect}
                 value={this.state.hotelStars}
-                onChange={this.handleChange('hotelStars')}
+                onChange={this.handleChange("hotelStars")}
               >
                 <MenuItem value={0}>0</MenuItem>
                 <MenuItem value={1}>1</MenuItem>

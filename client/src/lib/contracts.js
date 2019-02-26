@@ -1,64 +1,77 @@
-import Web3 from 'web3';
-import TruffleContract from 'truffle-contract';
-import Hotel from '../contracts/Hotel.json';
-import HotelFactory from '../contracts/HotelFactory.json';
+import Web3 from "web3";
+import TruffleContract from "truffle-contract";
+import Hotel from "../contracts/Hotel.json";
+import HotelFactory from "../contracts/HotelFactory.json";
 
-const NETWORK_ADDR = 'http://localhost:7545';
+const NETWORK_ADDR = "http://localhost:7545";
 
-export default class Contracts {
-  static instance;
+const ethereum = window.ethereum;
+let contracts = {};
+let instances = {};
 
-  constructor() {
-    if (Contracts.instance) {
-      return Contracts.instance;
-    }
-
-    const ethereum = window.ethereum;
-    ethereum.enable().then(enArr => {
-      if (typeof ethereum !== 'undefined') {
-        this.web3 = new Web3(ethereum);
-        this.address = enArr[0];
-      } else {
-        console.log('No web3? You should consider trying MetaMask!');
-        // fallback - use your fallback strategy (local node / hosted node + in-dapp id mgmt / fail)
-        this.web3 = new Web3(new Web3.providers.HttpProvider(NETWORK_ADDR));
-        this.address = this.web3.eth.defaultAccount;
-      }
-
-      this.contracts = {};
-      const instances = {};
-      this.contracts.Factory = TruffleContract(HotelFactory);
-
-      this.contracts.Factory.setProvider(ethereum);
-      this.contracts.Factory.deployed().then(factoryInstance => {
-        instances.Factory = factoryInstance;
-      });
-      this.instances = instances;
-
-      this.contracts.Hotel = TruffleContract(Hotel);
-      this.contracts.Hotel.setProvider(ethereum);
-    });
-
-    this.instance = this;
+let address;
+let web3;
+ethereum.enable().then(enArr => {
+  if (typeof ethereum !== "undefined") {
+    web3 = new Web3(ethereum);
+    address = enArr[0];
+  } else {
+    console.log("No web3? You should consider trying MetaMask!");
+    // fallback - use your fallback strategy (local node / hosted node + in-dapp id mgmt / fail)
+    web3 = new Web3(new Web3.providers.HttpProvider(NETWORK_ADDR));
+    address = web3.eth.defaultAccount;
   }
 
+  contracts.Factory = TruffleContract(HotelFactory);
+
+  contracts.Factory.setProvider(ethereum);
+  contracts.Factory.deployed().then(factoryInstance => {
+    instances.Factory = factoryInstance;
+  });
+
+  contracts.Hotel = TruffleContract(Hotel);
+  contracts.Hotel.setProvider(ethereum);
+});
+
+export function isReady() {
+  const check = res => {
+    if (instances.Factory) {
+      res();
+    } else {
+      setTimeout(() => check(res), 500);
+    }
+  };
+  return new Promise((res, rej) => {
+    check(res);
+  });
+}
+
+class ContractsManager {
   async createHotel(hotelName) {
-    hotelName = this.web3.utils.asciiToHex(hotelName);
-    if (!this.instances || !this.instances.Factory) {
-      throw new Error('Factory contract not loaded');
+    hotelName = web3.utils.asciiToHex(hotelName);
+    if (!instances || !instances.Factory) {
+      throw new Error("Factory contract not loaded");
     }
     const txReceipt = await this.execute(
-      this.instances.Factory.createContract,
+      instances.Factory.createContract,
       hotelName
     );
     return txReceipt.logs[0].args.contractAddress;
   }
 
-  listHotel() {
-    if (!this.instances || !this.instances.Factory) {
-      throw new Error('Factory contract not loaded');
+  listHotels() {
+    if (!instances || !instances.Factory) {
+      throw new Error("Factory contract not loaded");
     }
-    return this.instances.Factory.listHotel.call({ from: this.address });
+    return instances.Factory.listAllHotels.call({ from: address });
+  }
+
+  listMyHotels() {
+    if (!instances || !instances.Factory) {
+      throw new Error("Factory contract not loaded");
+    }
+    console.log(address);
+    return instances.Factory.listMyHotels.call({ from: address });
   }
 
   /*getBalance() {
@@ -74,9 +87,9 @@ export default class Contracts {
   }*/
 
   async addRoom(price, cancellable, address) {
-    const weiPrice = this.web3.utils.toWei(price);
-    const weiCancellable = this.web3.utils.toWei(cancellable);
-    const hotelContract = await this.contracts.Hotel.at(address);
+    const weiPrice = web3.utils.toWei(price);
+    const weiCancellable = web3.utils.toWei(cancellable);
+    const hotelContract = await contracts.Hotel.at(address);
     try {
       const txReceipt = await this.execute(
         hotelContract.addRoom,
@@ -97,7 +110,7 @@ export default class Contracts {
     dateStart,
     dateEnd
   ) {
-    const hotelContract = await this.contracts.Hotel.at(hotelAddress);
+    const hotelContract = await contracts.Hotel.at(hotelAddress);
     const toCall = isCancellableBooking
       ? hotelContract.freeCancellation
       : hotelContract.booking;
@@ -117,11 +130,7 @@ export default class Contracts {
   }
 
   async checkAvailability(hotelAddress, roomId, start, end) {
-    const hotelContract = await this.contracts.Hotel.at(hotelAddress);
-    console.log(hotelAddress);
-    console.log(roomId);
-    console.log(start);
-    console.log(end);
+    const hotelContract = await contracts.Hotel.at(hotelAddress);
     try {
       return await hotelContract.isAvailableForDates.call(roomId, start, end);
     } catch (e) {
@@ -130,16 +139,42 @@ export default class Contracts {
     }
   }
 
+  async availableRooms(hotelAddress, start, end) {
+    const hotelContract = await contracts.Hotel.at(hotelAddress);
+    console.log(start, end);
+    try {
+      return await hotelContract.availableRoomsForDates.call(start, end);
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+  }
+
+  async cancel(hotelAddress, bookingId) {
+    const hotelContract = await contracts.Hotel.at(hotelAddress);
+    try {
+      return await hotelContract.cancel.call(bookingId);
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+  }
+
   execute(func, ...param) {
-    return func(...param, { from: this.address });
+    return func(...param, { from: address });
   }
 
   executeWithMoney(func, price, ...param) {
+    console.log(address);
     const req = {
-      from: this.address,
-      value: this.web3.utils.toWei(price, 'ether')
+      from: address,
+      value: web3.utils.toWei(price, "ether")
     };
-    console.log(req.value);
+
     return func(...param, req);
   }
 }
+
+const contractsManager = new ContractsManager();
+
+export default contractsManager;

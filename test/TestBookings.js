@@ -42,14 +42,25 @@ contract("Booking", function(accounts) {
   
   it("should book room correctly", async () => {
     // Book the room
-    const result = await instance.booking(1, checkInDate, checkOutDate, {
+    const result = await instance.book(1, checkInDate, checkOutDate, false, {
       value: weiPrice
     });
 
     // Get the booking data
     const bookingId = result.logs[0].args.bookingId;
-    const bookings = await instance.bookings(bookingId);
-
+    const bookings = await instance.allBookings(bookingId);
+    /*
+    await instance.addRoom(price, priceCancellable);
+    
+    await instance.addRoom(price, priceCancellable);
+    await instance.book(3, checkInDate, checkOutDate, false, {
+      value: weiPrice
+    });
+    
+    const wesh = await instance.myBookings();
+    console.log(wesh.logs[0].args);
+    console.log(wesh.logs[1].args["1"].toNumber());
+    */
     // Assert the booking is confirmed
     assert.equal(bookings[5].toNumber(), 1 /* CONFIRMED */);
   });
@@ -77,7 +88,7 @@ contract("Booking", function(accounts) {
     const bookingId = await instance.freeCancellation.call(
       1,
       checkInDate,
-      checkOutDate,
+      checkOutDate, true,
       { value: weiPriceCancellable }
     );
     assert.isNotNull(bookingId);
