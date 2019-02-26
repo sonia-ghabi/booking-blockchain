@@ -52,14 +52,12 @@ class MyHotels extends React.Component {
     this.setState({
       userHotels: userHotelsIds
     });
-    console.log(userHotelsIds);
+
     const hotels = await Promise.all(
       userHotelsIds.map(id => {
-        console.log(id);
         return this.db.readData('hotel', id);
       })
     );
-    console.log(hotels);
 
     this.setState({
       hotels

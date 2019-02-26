@@ -69,8 +69,8 @@ class HotelSummary extends Component {
       price: '',
       priceCancellable: '',
       userHotels: [],
-      startDate: moment(),
-      endDate: moment(),
+      startDate: moment().startOf('day'),
+      endDate: moment().startOf('day'),
       hotelSummary: {
         id: null,
         name: '',
@@ -136,7 +136,7 @@ class HotelSummary extends Component {
   };
 
   handleDateChange = key => date => {
-    this.setState({ [key]: date });
+    this.setState({ [key]: date.startOf('day') });
   };
 
   async checkAvailability() {
@@ -155,19 +155,14 @@ class HotelSummary extends Component {
   bookRoom(roomId, price, isCancellableBooking = false) {
     return async () => {
       const { startDate, endDate } = this.state;
-      console.log({
-        roomId,
-        hotelAddress: this.hotelAddress,
-        isCancellableBooking,
-        price,
-        startDate: startDate.unix(),
-        endDate: endDate.unix()
-      });
+      const diff = endDate.diff(startDate, 'days') || 1;
+      console.log(`${diff} nights`);
+
       const res = await this.contracts.book(
         0,
         this.hotelAddress,
         isCancellableBooking,
-        price,
+        diff * price,
         startDate.unix(),
         endDate.unix()
       );
@@ -233,6 +228,7 @@ class HotelSummary extends Component {
                   <TableCell align="right">Pre-paid price</TableCell>
                   <TableCell align="right">Cancellable price</TableCell>
                   <TableCell>Book</TableCell>
+                  <TableCell>Book Cancellable</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -249,6 +245,18 @@ class HotelSummary extends Component {
                         onClick={this.bookRoom(room.id, room.price)}
                       >
                         Book
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outlined"
+                        onClick={this.bookRoom(
+                          room.id,
+                          room.priceCancellable,
+                          true
+                        )}
+                      >
+                        Book Cancellable
                       </Button>
                     </TableCell>
                   </TableRow>

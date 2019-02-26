@@ -58,8 +58,7 @@ export default class Contracts {
     if (!this.instances || !this.instances.Factory) {
       throw new Error('Factory contract not loaded');
     }
-    console.log(window.web3.eth.defaultAccount);
-    return this.execute(this.instances.Factory.listHotel);
+    return this.instances.Factory.listHotel.call({ from: this.address });
   }
 
   /*getBalance() {
@@ -81,8 +80,8 @@ export default class Contracts {
     try {
       const txReceipt = await this.execute(
         hotelContract.addRoom,
-        weiPrice,
-        weiCancellable
+        price,
+        cancellable
       );
       return txReceipt.logs[0].args.roomId.toString(10);
     } catch (e) {
@@ -103,8 +102,14 @@ export default class Contracts {
       ? hotelContract.freeCancellation
       : hotelContract.booking;
     try {
-      console.log(hotelContract);
-      await this.executeWithMoney(toCall, price, roomId, dateStart, dateEnd);
+      console.log(price);
+      await this.executeWithMoney(
+        toCall,
+        price.toString(),
+        roomId,
+        dateStart,
+        dateEnd
+      );
     } catch (e) {
       console.error(e);
       throw e;
@@ -134,6 +139,7 @@ export default class Contracts {
       from: this.address,
       value: this.web3.utils.toWei(price, 'ether')
     };
+    console.log(req.value);
     return func(...param, req);
   }
 }

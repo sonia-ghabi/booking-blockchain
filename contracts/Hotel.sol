@@ -15,8 +15,12 @@ contract HotelFactory {
         emit newHotelEvent(hotelContractAddress);
     } 
 
-    function listHotel() public returns (address[] memory){
+    function listMyHotel() public returns (address[] memory){
         return hotelOwnerships[msg.sender];
+    }
+
+    function listAllHotel() public view returns (address[] memory){
+        return hotelContracts;
     }
 }
 
@@ -24,7 +28,7 @@ contract Hotel {
 
     enum BookingStatus {
         CANCELED,
-        CONFIRMED,    
+        CONFIRMED,
         PENDING
     }
 
@@ -76,9 +80,9 @@ contract Hotel {
         require(currentRoomId > 0 && roomId >= 0 && roomId < currentRoomId && start < end && dateStart <= start);
         
         // Do not proceed if the price of the booking is wrong
-        if (msg.value != roomList[roomId].price)
+        if (msg.value != ((end - start)/ 60 / 60 / 24) * roomList[roomId].price)
         {
-            revert();
+            revert("Wrong price");
         }
         
         // Mark the room as booked for the days of the booking
@@ -97,7 +101,6 @@ contract Hotel {
         userBookings[msg.sender].push(bookingId);
 
         emit Booked(bookingId);
-
         return bookingId;
     }
 	
@@ -106,11 +109,11 @@ contract Hotel {
 	{
 	    // Make sure the roomId exist and the date are usable
         require(roomId >= 0 && roomId <= currentRoomId && start < end && dateStart <= start);
-        
+
         // Do not proceed if the price of the booking is wrong
-        if (msg.value != roomList[roomId].priceCancellable)
+        if (msg.value != ((end - start)/ 60 / 60 / 24) * roomList[roomId].priceCancellable)
         {
-            revert("Wrong booking price");
+            revert("Wrong price");
         }
         
         // Mark the room as booked for the days of the booking
@@ -126,7 +129,6 @@ contract Hotel {
         userBookings[msg.sender].push(bookingId);
         
         emit FreeCancel(bookingId);
-
         return bookingId;
     }
 	
@@ -163,6 +165,22 @@ contract Hotel {
         
         // Delegate the call 
         return isAvailableForDayNumbers(roomId, dayStart, dayEnd);
+    }
+
+    function availableRoomsForDates(uint start, uint end) 
+		public 
+        view
+		returns (bool[] memory)
+	{
+	    // Convert the date to day number (0 being the date the contract was deployed)
+        uint dayStart = convertToDayNumber(start);	
+        uint dayEnd = convertToDayNumber(end);
+        
+        bool[] memory availableRooms;
+        for(uint i = 0; i < currentRoomId; i++) {
+            availableRooms[i] = isAvailableForDayNumbers(i, dayStart, dayEnd);
+        }
+        return availableRooms;
     }
 	
     event newRoomEvent(uint roomId);
