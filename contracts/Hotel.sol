@@ -15,7 +15,7 @@ contract HotelFactory {
         emit newHotelEvent(hotelContractAddress);
     } 
 
-    function listMyHotel() public returns (address[] memory){
+    function listMyHotel() public view returns (address[] memory){
         return hotelOwnerships[msg.sender];
     }
 
@@ -167,22 +167,24 @@ contract Hotel {
         return isAvailableForDayNumbers(roomId, dayStart, dayEnd);
     }
 
-    function availableRoomsForDates(uint start, uint end) 
-		public 
+    // Get an array corresponding to available rooms
+    function availableRoomsForDates(uint start, uint end)
+		public
         view
 		returns (bool[] memory)
 	{
-	    // Convert the date to day number (0 being the date the contract was deployed)
-        uint dayStart = convertToDayNumber(start);	
-        uint dayEnd = convertToDayNumber(end);
         
-        bool[] memory availableRooms;
+	    // Convert the date to day number (0 being the date the contract was deployed)
+        uint dayStart = convertToDayNumber(start);
+        uint dayEnd = convertToDayNumber(end);
+    
+        bool[] memory availableRooms = new bool[](currentRoomId);
         for(uint i = 0; i < currentRoomId; i++) {
             availableRooms[i] = isAvailableForDayNumbers(i, dayStart, dayEnd);
         }
         return availableRooms;
     }
-	
+
     event newRoomEvent(uint roomId);
     function addRoom(uint price, uint priceCancellable) 
 		public 
@@ -201,6 +203,7 @@ contract Hotel {
     }
 
     function getRoom(uint roomId) 
+        view
 		public 
 		returns (uint priceCancellable, uint price, bool[] memory booked) 
     {

@@ -1,40 +1,46 @@
-var Booking = artifacts.require('Hotel');
+var Booking = artifacts.require("Hotel");
 
-contract('Booking', function(accounts) {
+contract("Booking", function(accounts) {
   // Set variables
-  const date = Date.now() / 1000; // Solidity uses date in ms
+  const date =
+    new Date(
+      new Date().getFullYear(),
+      new Date().getMonth(),
+      new Date().getDate()
+    ) / 1000; // Solidity uses date in ms
   const checkInDate = date + 60 * 60 * 24 * 1;
   const checkOutDate = date + 60 * 60 * 24 * 2;
-  const priceCancellable = '3';
-  const price = '2';
-  const weiPriceCancellable = web3.utils.toWei(priceCancellable, 'ether');
-  const weiPrice = web3.utils.toWei(price, 'ether');
-  const revertMessage = 'VM Exception while processing transaction: revert';
+  const priceCancellable = "3";
+  const price = "2";
+  const weiPriceCancellable = web3.utils.toWei(priceCancellable, "ether");
+  const weiPrice = web3.utils.toWei(price, "ether");
+  const revertMessage =
+    "Returned error: VM Exception while processing transaction: revert";
   let instance;
 
   beforeEach(async () => {
     // Start a new instance
-    instance = await Booking.new(accounts[0], web3.utils.asciiToHex('hotel'));
+    instance = await Booking.new(accounts[0], web3.utils.asciiToHex("hotel"));
 
     // Add a room
     await instance.addRoom(price, priceCancellable);
   });
 
-  it('should add room correctly', async () => {
+  it("should add room correctly", async () => {
     // Get the room information
     const room = await instance.getRoom.call(0);
 
     // Assert the room information
     assert.isNotNull(room);
     assert.equal(
-      room[0].toNumber(),
+      room[0].toString(),
       weiPriceCancellable,
-      'Wrong cancellable price'
+      "Wrong cancellable price"
     ); // Price cancellable
-    assert.equal(room[1].toNumber(), web3.toWei('2', 'ether'), 'Wrong price'); // Price
+    assert.equal(room[1].toString(), weiPrice, "Wrong price"); // Price
   });
 
-  it('should book room correctly', async () => {
+  it("should book room correctly", async () => {
     // Book the room
     const result = await instance.booking(0, checkInDate, checkOutDate, {
       value: weiPrice
@@ -48,7 +54,7 @@ contract('Booking', function(accounts) {
     assert.equal(bookings[5].toNumber(), 1 /* CONFIRMED */);
   });
 
-  it('should revert double booking', async () => {
+  it("should revert double booking", async () => {
     // Book the room
     const result = await instance.booking(0, checkInDate, checkOutDate, {
       value: weiPrice
@@ -62,12 +68,12 @@ contract('Booking', function(accounts) {
       throw null;
     } catch (error) {
       // Assert an error append
-      assert(error, 'Expected an error but did not get one');
+      assert(error, "Expected an error but did not get one");
       assert(error.message.startsWith(revertMessage));
     }
   });
 
-  it('should book with free cancellation', async () => {
+  it("should book with free cancellation", async () => {
     const bookingId = await instance.freeCancellation.call(
       0,
       checkInDate,
@@ -77,7 +83,7 @@ contract('Booking', function(accounts) {
     assert.isNotNull(bookingId);
   });
 
-  it('should be false is available for dates', async () => {
+  it("should be false is available for dates", async () => {
     // Book the room
     const result = await instance.freeCancellation(
       0,
@@ -98,7 +104,7 @@ contract('Booking', function(accounts) {
     assert.isFalse(isAvailable);
   });
 
-  it('should be true is available for dates', async () => {
+  it("should be true is available for dates", async () => {
     // Set date
     const startDate = date + 60 * 60 * 24 * 10;
     const endDate = date + 60 * 60 * 24 * 12;
@@ -114,7 +120,7 @@ contract('Booking', function(accounts) {
     assert.isTrue(isAvailable);
   });
 
-  it('should book be able to cancel free cancellation', async () => {
+  it("should book be able to cancel free cancellation", async () => {
     // Book the room
     const result = await instance.freeCancellation(
       0,
@@ -140,7 +146,7 @@ contract('Booking', function(accounts) {
     assert.equal(freeCancellations[5].toNumber(), 0 /* CANCELED */);
   });
 
-  it('should revert double booking with free cancellation', async () => {
+  it("should revert double booking with free cancellation", async () => {
     // Book the room a first time
     await instance.freeCancellation(0, checkInDate, checkOutDate, {
       value: weiPriceCancellable
@@ -154,8 +160,31 @@ contract('Booking', function(accounts) {
       throw null;
     } catch (error) {
       // Assert an error append
-      assert(error, 'Expected an error but did not get one');
+      assert(error, "Expected an error but did not get one");
       assert(error.message.startsWith(revertMessage));
     }
+  });
+
+  it("should be returned is available rooms for dates", async () => {
+    // Add 2 other rooms
+    await instance.addRoom(price, priceCancellable);
+    await instance.addRoom(price, priceCancellable);
+
+    // Book one of the room
+    const result = await instance.booking(1, checkInDate, checkOutDate, {
+      value: weiPrice
+    });
+
+    // Get availability
+    const availableRooms = await instance.availableRoomsForDates.call(
+      checkInDate,
+      checkOutDate
+    );
+
+    // Assert
+    assert(availableRooms.length == 3);
+    assert(availableRooms[0]);
+    assert(!availableRooms[1]);
+    assert(availableRooms[2]);
   });
 });
