@@ -37,7 +37,7 @@ contract Hotel {
         BookingStatus status;
     }
 
-    struct Room {       
+    struct Room {
         uint roomId;
         uint priceCancellable;
         uint price;
@@ -52,7 +52,7 @@ contract Hotel {
     mapping(bytes32 => BookingData) public freeCancellations;
     mapping(bytes32 => BookingData) public bookings;
 
-    uint public dateStart = 0;
+    uint public dateStart;
     mapping(address => bytes32[]) userBookings;
 
     event FreeCancel(bytes32 bookingId);
@@ -66,6 +66,7 @@ contract Hotel {
     constructor(address payable _owner, bytes32 _name) public {
         name = _name;
         owner = _owner;
+        dateStart = now;
     }
     
     // No cancellation
@@ -153,6 +154,7 @@ contract Hotel {
 	// Check if a room is available for the given dates
     function isAvailableForDates(uint roomId, uint start, uint end) 
 		public 
+        view
 		returns (bool)
 	{
 	    // Convert the date to day number (0 being the date the contract was deployed)
@@ -163,14 +165,20 @@ contract Hotel {
         return isAvailableForDayNumbers(roomId, dayStart, dayEnd);
     }
 	
+    event newRoomEvent(uint roomId);
     function addRoom(uint price, uint priceCancellable) 
 		public 
 		returns (uint) 
 	{
+        if (msg.sender != owner)
+        {
+            revert("Only owner can update hotel.");
+        }
         uint weiPriceCancellable = priceCancellable * 1000000000000000000;
         uint weiPrice = price * 1000000000000000000;
         roomList[currentRoomId] = Room(currentRoomId, weiPriceCancellable, weiPrice, new bool[](365));
         currentRoomId = currentRoomId + 1;
+        emit newRoomEvent(currentRoomId);
         return currentRoomId;
     }
 
@@ -199,6 +207,7 @@ contract Hotel {
     // Convert dae to day number (0 being the contract creation day)
     function convertToDayNumber(uint date) 
     	internal 
+        view
     	returns (uint)
 	{
         return (date - dateStart) / 60 / 60 / 24;
@@ -207,6 +216,7 @@ contract Hotel {
     // Check whether the room is available for the given day numbers
     function isAvailableForDayNumbers(uint roomId, uint dayStart, uint dayEnd) 
     	internal 
+        view
     	returns (bool)
 	{
         for (uint i = dayStart; i <= dayEnd ; i++)
