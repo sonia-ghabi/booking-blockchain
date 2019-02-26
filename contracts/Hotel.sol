@@ -3,7 +3,6 @@ pragma solidity ^0.5.0;
 contract HotelFactory {
     address[] hotelContracts;
     mapping(address => address[]) public hotelOwnerships;
-    string public myString = "Hello World";
 
     event newHotelEvent(address contractAddress);
 
@@ -15,11 +14,11 @@ contract HotelFactory {
         emit newHotelEvent(hotelContractAddress);
     } 
 
-    function listMyHotel() public view returns (address[] memory){
+    function listMyHotels() public view returns (address[] memory){
         return hotelOwnerships[msg.sender];
     }
 
-    function listAllHotel() public view returns (address[] memory){
+    function listAllHotels() public view returns (address[] memory){
         return hotelContracts;
     }
 }
@@ -39,6 +38,7 @@ contract Hotel {
         uint endDate;
         uint amountPaid;
         BookingStatus status;
+        uint dateTimeStart;
     }
 
     struct Room {
@@ -48,16 +48,17 @@ contract Hotel {
         bool[] booked;
     }
 
+    uint public dateStart;
     address payable owner;
     bytes32 name;
     uint public currentRoomId = 0;
     uint96 public numBooking = 0;
-    Room[10] public roomList;
+    mapping(uint => Room) public roomList; // Id will start from 1
     mapping(bytes32 => BookingData) public freeCancellations;
     mapping(bytes32 => BookingData) public bookings;
-
-    uint public dateStart;
     mapping(address => bytes32[]) userBookings;
+    bytes32[] public pendingFreeCancellation;
+    uint pendingFreeCancellationCount = 0;
 
     event FreeCancel(bytes32 bookingId);
     event Cancelled(bytes32 bookingId);
@@ -70,14 +71,15 @@ contract Hotel {
     constructor(address payable _owner, bytes32 _name) public {
         name = _name;
         owner = _owner;
-        dateStart = now;
+        uint day = 60*60*24;
+        dateStart = (now/day)*day; // floor to date, don't keep the time
     }
     
     // No cancellation
     function booking(uint roomId, uint start, uint end) payable public returns (bytes32)
     {
         // Make sure the roomId exist and the date are usable
-        require(currentRoomId > 0 && roomId >= 0 && roomId < currentRoomId && start < end && dateStart <= start);
+        require(currentRoomId > 0 && roomId > 0 && roomId <= currentRoomId && start < end && dateStart <= start);
         
         // Do not proceed if the price of the booking is wrong
         if (msg.value != ((end - start)/ 60 / 60 / 24) * roomList[roomId].price)
@@ -92,7 +94,7 @@ contract Hotel {
         
         // Save the booking data
         bytes32 bookingId = generateBookingId(msg.sender);
-        bookings[bookingId] = BookingData(msg.sender, roomId, dayStart, dayEnd, msg.value, BookingStatus.CONFIRMED);
+        bookings[bookingId] = BookingData(msg.sender, roomId, dayStart, dayEnd, msg.value, BookingStatus.CONFIRMED, start);
         
         // Transfer the money to the hotel owner
         owner.transfer(msg.value);
@@ -108,7 +110,7 @@ contract Hotel {
     function freeCancellation(uint roomId, uint start, uint end) payable public returns (bytes32)
 	{
 	    // Make sure the roomId exist and the date are usable
-        require(roomId >= 0 && roomId <= currentRoomId && start < end && dateStart <= start);
+        require(roomId > 0 && roomId <= currentRoomId && start < end && dateStart <= start);
 
         // Do not proceed if the price of the booking is wrong
         if (msg.value != ((end - start)/ 60 / 60 / 24) * roomList[roomId].priceCancellable)
@@ -123,10 +125,14 @@ contract Hotel {
         
         // Save the booking data
         bytes32 bookingId = generateBookingId(msg.sender);
-        freeCancellations[bookingId] = BookingData(msg.sender, roomId, dayStart, dayEnd, msg.value, BookingStatus.PENDING);
+        freeCancellations[bookingId] = BookingData(msg.sender, roomId, dayStart, dayEnd, msg.value, BookingStatus.PENDING, start);
 	
 	    // Push the booking ID for the user
         userBookings[msg.sender].push(bookingId);
+
+        // Push the booking ID into the pending FreeCancellations
+        pendingFreeCancellation.push(bookingId);
+        pendingFreeCancellationCount++;
         
         emit FreeCancel(bookingId);
         return bookingId;
@@ -140,17 +146,18 @@ contract Hotel {
             revert("Not the owner of the booking");
         else if (bookingData.status != BookingStatus.PENDING)
             revert("Booking already canceled");
+        else if (bookingData.dateTimeStart < now)
+            revert("Booking already started, cannot be cancelled");
             
         // Mark the room as available
         markAsAvailable(bookingData.roomId, bookingData.startDate, bookingData.endDate);
 	    
-	    // Transfer the money back to the customer
-        msg.sender.transfer(bookingData.amountPaid);
-        
-        emit Cancelled(bookingId);
-
         // Mark the booking as canceled
         freeCancellations[bookingId].status = BookingStatus.CANCELED;
+        emit Cancelled(bookingId);
+
+        // Transfer the money back to the customer
+        msg.sender.transfer(bookingData.amountPaid);
     }
 	
 	// Check if a room is available for the given dates
@@ -172,15 +179,14 @@ contract Hotel {
 		public
         view
 		returns (bool[] memory)
-	{
-        
+	{       
 	    // Convert the date to day number (0 being the date the contract was deployed)
         uint dayStart = convertToDayNumber(start);
         uint dayEnd = convertToDayNumber(end);
     
         bool[] memory availableRooms = new bool[](currentRoomId);
         for(uint i = 0; i < currentRoomId; i++) {
-            availableRooms[i] = isAvailableForDayNumbers(i, dayStart, dayEnd);
+            availableRooms[i] = isAvailableForDayNumbers(i+1, dayStart, dayEnd);
         }
         return availableRooms;
     }
@@ -196,8 +202,8 @@ contract Hotel {
         }
         uint weiPriceCancellable = priceCancellable * 1000000000000000000;
         uint weiPrice = price * 1000000000000000000;
+        ++currentRoomId;
         roomList[currentRoomId] = Room(currentRoomId, weiPriceCancellable, weiPrice, new bool[](365));
-        currentRoomId = currentRoomId + 1;
         emit newRoomEvent(currentRoomId);
         return currentRoomId;
     }
@@ -208,6 +214,46 @@ contract Hotel {
 		returns (uint priceCancellable, uint price, bool[] memory booked) 
     {
         return (roomList[roomId].priceCancellable, roomList[roomId].price, roomList[roomId].booked);
+    }
+
+    event withdrawEvent(uint, uint, bytes32[]);
+    function withdraw(uint nowDate) public returns (uint) {
+        if (msg.sender != owner)
+        {
+            revert("Only owner can withdraw money from his hotel.");
+        }
+
+        // Initialize
+        uint amount = 0;
+        bytes32[] memory tempCopy = pendingFreeCancellation;
+        delete pendingFreeCancellation;
+        uint count = 0;
+        
+        // Loop through the pending free cancellations
+        for (uint i = 0; i < pendingFreeCancellationCount; i++)
+        {
+            bytes32 bookingId = tempCopy[i];
+            BookingData memory bookingData = freeCancellations[bookingId];
+
+            // Collect the money if the booking was for a past date and wasn't cancelled
+            if (bookingData.dateTimeStart < nowDate && bookingData.status == BookingStatus.PENDING)
+                amount += bookingData.amountPaid;
+            
+            // Otherwise keep the booking for pending 
+            else if (bookingData.dateTimeStart > nowDate)
+            {
+                pendingFreeCancellation.push(bookingId); 
+                count++;
+            }              
+        }
+
+        // Update class members
+        pendingFreeCancellationCount = count;
+        emit withdrawEvent(amount,pendingFreeCancellationCount, pendingFreeCancellation);
+
+        // Refund the money
+        msg.sender.transfer(amount);
+        return (amount);
     }
 	
 	// **************
