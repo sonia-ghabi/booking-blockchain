@@ -1,47 +1,46 @@
-import React, { Component } from 'react';
-import TextField from '@material-ui/core/TextField';
-import Typography from '@material-ui/core/Typography';
-import withStyles from '@material-ui/core/styles/withStyles';
-import Paper from '@material-ui/core/Paper';
-import Dialog from '@material-ui/core/Dialog';
-import DialogContent from '@material-ui/core/DialogContent';
-import DialogTitle from '@material-ui/core/DialogTitle';
-import DialogActions from '@material-ui/core/DialogActions';
-import DialogContentText from '@material-ui/core/DialogContentText';
-import Button from '@material-ui/core/Button';
-import Fab from '@material-ui/core/Fab';
-import AddIcon from '@material-ui/icons/Add';
-import WarningIcon from '@material-ui/icons/Warning';
-import InputAdornment from '@material-ui/core/InputAdornment';
-import Table from '@material-ui/core/Table';
-import TableBody from '@material-ui/core/TableBody';
-import TableCell from '@material-ui/core/TableCell';
-import TableHead from '@material-ui/core/TableHead';
-import TableRow from '@material-ui/core/TableRow';
-import Snackbar from '@material-ui/core/Snackbar';
-import SnackbarContent from '@material-ui/core/SnackbarContent';
+import React, { Component } from "react";
+import TextField from "@material-ui/core/TextField";
+import Typography from "@material-ui/core/Typography";
+import withStyles from "@material-ui/core/styles/withStyles";
+import Paper from "@material-ui/core/Paper";
+import Dialog from "@material-ui/core/Dialog";
+import DialogContent from "@material-ui/core/DialogContent";
+import DialogTitle from "@material-ui/core/DialogTitle";
+import DialogActions from "@material-ui/core/DialogActions";
+import DialogContentText from "@material-ui/core/DialogContentText";
+import Button from "@material-ui/core/Button";
+import Fab from "@material-ui/core/Fab";
+import AddIcon from "@material-ui/icons/Add";
+import WarningIcon from "@material-ui/icons/Warning";
+import InputAdornment from "@material-ui/core/InputAdornment";
+import Table from "@material-ui/core/Table";
+import TableBody from "@material-ui/core/TableBody";
+import TableCell from "@material-ui/core/TableCell";
+import TableHead from "@material-ui/core/TableHead";
+import TableRow from "@material-ui/core/TableRow";
+import Snackbar from "@material-ui/core/Snackbar";
+import SnackbarContent from "@material-ui/core/SnackbarContent";
 
-import Header from './components/header';
-import Stars from './components/stars';
-import Contracts, { isReady } from './lib/contracts';
-import Database, { firebaseDb } from './lib/database';
+import Header from "./components/header";
+import Stars from "./components/stars";
+import Contracts, { isReady } from "./lib/contracts";
 
 const styles = theme => ({
   appBar: {
-    position: 'relative'
+    position: "relative"
   },
   layout: {
-    width: 'auto',
+    width: "auto",
     marginLeft: theme.spacing.unit * 2,
     marginRight: theme.spacing.unit * 2,
     [theme.breakpoints.up(600 + theme.spacing.unit * 2 * 2)]: {
       width: 600,
-      marginLeft: 'auto',
-      marginRight: 'auto'
+      marginLeft: "auto",
+      marginRight: "auto"
     }
   },
   paper: {
-    position: 'relative',
+    position: "relative",
     marginTop: theme.spacing.unit * 3,
     marginBottom: theme.spacing.unit * 3,
     padding: theme.spacing.unit * 2,
@@ -52,12 +51,12 @@ const styles = theme => ({
     }
   },
   addRoomFab: {
-    position: 'absolute',
+    position: "absolute",
     right: theme.spacing.unit * 2,
     top: theme.spacing.unit * 2
   },
   errorSnack: {
-    position: 'static',
+    position: "static",
     marginTop: theme.spacing.unit * 3,
     marginBottom: theme.spacing.unit * 3
   },
@@ -75,13 +74,13 @@ class ManageHotel extends Component {
     super(props);
     this.state = {
       addingRoom: false,
-      price: '',
-      priceCancellable: '',
+      price: "",
+      priceCancellable: "",
       userHotels: [],
       hotelSummary: {
         id: null,
-        name: '',
-        description: '',
+        name: "",
+        description: "",
         stars: 0
       },
       rooms: []
@@ -127,25 +126,14 @@ class ManageHotel extends Component {
     this.handleCloseAddRoomDialog();
     await this.saveRoom(hotelSummary.id, price, priceCancellable);
     this.setState({
-      price: '',
-      priceCancellable: ''
+      price: "",
+      priceCancellable: ""
     });
   }
 
   async saveRoom(hotelId, price, priceCancellable) {
     const roomId = await Contracts.addRoom(price, priceCancellable, hotelId);
     this.loadRooms();
-    if (roomId) {
-      await firebaseDb
-        .collection('hotel')
-        .doc(hotelId)
-        .collection('rooms')
-        .doc(roomId)
-        .set({
-          price,
-          priceCancellable
-        });
-    }
   }
 
   handleChange = key => event => {
@@ -166,13 +154,13 @@ class ManageHotel extends Component {
           <Snackbar
             className={classes.errorSnack}
             open={!this.state.userHotels.includes(this.hotelAddress)}
-            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+            anchorOrigin={{ vertical: "top", horizontal: "center" }}
           >
             <SnackbarContent
               className={classes.errorSnackContent}
               message={
                 <span>
-                  <WarningIcon style={{ verticalAlign: 'bottom' }} /> You're not
+                  <WarningIcon style={{ verticalAlign: "bottom" }} /> You're not
                   the owner of this hotel and can't modify it.
                 </span>
               }
@@ -207,7 +195,7 @@ class ManageHotel extends Component {
                 <AddIcon />
               </Fab>
             ) : (
-              ''
+              ""
             )}
 
             <Table>

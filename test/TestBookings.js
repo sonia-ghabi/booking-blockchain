@@ -1,6 +1,6 @@
-var Booking = artifacts.require("Hotel");
+var Hotel = artifacts.require("Hotel");
 
-contract("Booking", function(accounts) {
+contract("Hotel", function(accounts) {
   // Set variables
   const date =
     new Date(
@@ -20,10 +20,17 @@ contract("Booking", function(accounts) {
 
   beforeEach(async () => {
     // Start a new instance
-    instance = await Booking.new(accounts[0], web3.utils.asciiToHex("hotel"));
+    instance = await Hotel.new(
+      accounts[1],
+      web3.utils.asciiToHex("hotel"),
+      4,
+      "This is an hotel"
+    );
 
     // Add a room
-    await instance.addRoom(price, priceCancellable);
+    await instance.addRoom(weiPrice, weiPriceCancellable, {
+      from: accounts[1]
+    });
   });
 
   it("should add room correctly", async () => {
@@ -39,42 +46,34 @@ contract("Booking", function(accounts) {
     ); // Price cancellable
     assert.equal(room[1].toString(), weiPrice, "Wrong price"); // Price
   });
-  
+
   it("should book room correctly", async () => {
     // Book the room
     const result = await instance.book(1, checkInDate, checkOutDate, false, {
-      value: weiPrice
+      value: weiPrice,
+      from: accounts[2]
     });
 
-    // Get the booking data
+    // Get the boooking data
     const bookingId = result.logs[0].args.bookingId;
     const bookings = await instance.allBookings(bookingId);
-    /*
-    await instance.addRoom(price, priceCancellable);
-    
-    await instance.addRoom(price, priceCancellable);
-    await instance.book(3, checkInDate, checkOutDate, false, {
-      value: weiPrice
-    });
-    
-    const wesh = await instance.myBookings();
-    console.log(wesh.logs[0].args);
-    console.log(wesh.logs[1].args["1"].toNumber());
-    */
+
     // Assert the booking is confirmed
     assert.equal(bookings[5].toNumber(), 1 /* CONFIRMED */);
   });
 
   it("should revert double booking", async () => {
     // Book the room
-    const result = await instance.booking(1, checkInDate, checkOutDate, {
-      value: weiPrice
+    const result = await instance.book(1, checkInDate, checkOutDate, false, {
+      value: weiPrice,
+      from: accounts[2]
     });
 
     // Try to book it again
     try {
-      await instance.booking.call(1, checkInDate, checkOutDate, {
-        value: weiPrice
+      await instance.book.call(1, checkInDate, checkOutDate, false, {
+        value: weiPrice,
+        from: accounts[2]
       });
       throw null;
     } catch (error) {
@@ -85,23 +84,22 @@ contract("Booking", function(accounts) {
   });
 
   it("should book with free cancellation", async () => {
-    const bookingId = await instance.freeCancellation.call(
+    const bookingId = await instance.book.call(
       1,
       checkInDate,
-      checkOutDate, true,
-      { value: weiPriceCancellable }
+      checkOutDate,
+      true,
+      { value: weiPriceCancellable, from: accounts[2] }
     );
     assert.isNotNull(bookingId);
   });
 
   it("should be false is available for dates", async () => {
     // Book the room
-    const result = await instance.freeCancellation(
-      1,
-      checkInDate,
-      checkOutDate,
-      { value: weiPriceCancellable }
-    );
+    const result = await instance.book(1, checkInDate, checkOutDate, true, {
+      value: weiPriceCancellable,
+      from: accounts[2]
+    });
     const bookingId = result.logs[0].args.bookingId;
 
     /// Check availability
@@ -133,25 +131,23 @@ contract("Booking", function(accounts) {
 
   it("should book be able to cancel free cancellation", async () => {
     // Book the room
-    const result = await instance.freeCancellation(
-      1,
-      checkInDate,
-      checkOutDate,
-      { value: weiPriceCancellable }
-    );
+    const result = await instance.book(1, checkInDate, checkOutDate, true, {
+      value: weiPriceCancellable,
+      from: accounts[2]
+    });
     const bookingId = result.logs[0].args.bookingId;
 
     // Get the booking data
-    let freeCancellations = await instance.freeCancellations(bookingId);
+    let freeCancellations = await instance.allBookings(bookingId);
 
     // Assert pending
     assert.equal(freeCancellations[5].toNumber(), 2 /* PENDING */);
 
     // Cancel the room
-    await instance.cancel.sendTransaction(bookingId);
+    await instance.cancel(bookingId, { from: accounts[2] });
 
     // Refresh the booking data
-    freeCancellations = await instance.freeCancellations(bookingId);
+    freeCancellations = await instance.allBookings(bookingId);
 
     // Assert canceled
     assert.equal(freeCancellations[5].toNumber(), 0 /* CANCELED */);
@@ -159,14 +155,16 @@ contract("Booking", function(accounts) {
 
   it("should revert double booking with free cancellation", async () => {
     // Book the room a first time
-    await instance.freeCancellation(1, checkInDate, checkOutDate, {
-      value: weiPriceCancellable
+    await instance.book(1, checkInDate, checkOutDate, true, {
+      value: weiPriceCancellable,
+      from: accounts[2]
     });
 
     // Repeat the booking
     try {
-      await instance.freeCancellation(1, checkInDate, checkOutDate, {
-        value: weiPriceCancellable
+      await instance.book.call(1, checkInDate, checkOutDate, true, {
+        value: weiPriceCancellable,
+        from: accounts[2]
       });
       throw null;
     } catch (error) {
@@ -178,11 +176,15 @@ contract("Booking", function(accounts) {
 
   it("should be returned is available rooms for dates", async () => {
     // Add 2 other rooms
-    await instance.addRoom(price, priceCancellable);
-    await instance.addRoom(price, priceCancellable);
+    await instance.addRoom(weiPrice, weiPriceCancellable, {
+      from: accounts[1]
+    });
+    await instance.addRoom(weiPrice, weiPriceCancellable, {
+      from: accounts[1]
+    });
 
     // Book one of the room
-    const result = await instance.booking(2, checkInDate, checkOutDate, {
+    const result = await instance.book(2, checkInDate, checkOutDate, false, {
       value: weiPrice
     });
 
@@ -191,51 +193,65 @@ contract("Booking", function(accounts) {
       checkInDate,
       checkOutDate
     );
-    
+
     // Assert
     assert(availableRooms.length == 3);
     assert(availableRooms[0]);
     assert(!availableRooms[1]);
     assert(availableRooms[2]);
   });
-
+/*
   it("should withdraw correct amount", async () => {
     // Add other rooms
-    await instance.addRoom(price, priceCancellable, {from: accounts[0]});
-    await instance.addRoom(price, priceCancellable, {from: accounts[0]});
-    await instance.addRoom(price, priceCancellable, {from: accounts[0]});
-    await instance.addRoom(price, priceCancellable, {from: accounts[0]});
+    await instance.addRoom(weiPrice, weiPriceCancellable, {
+      from: accounts[1]
+    });
+    await instance.addRoom(weiPrice, weiPriceCancellable, {
+      from: accounts[1]
+    });
+    await instance.addRoom(weiPrice, weiPriceCancellable, {
+      from: accounts[1]
+    });
+    await instance.addRoom(weiPrice, weiPriceCancellable, {
+      from: accounts[1]
+    });
 
     // Book the rooms
-    let result = await instance.freeCancellation(1, checkInDate, checkOutDate, {
-      value: weiPriceCancellable, from: accounts[2]
+    let result = await instance.book(1, checkInDate, checkOutDate, true, {
+      value: weiPriceCancellable,
+      from: accounts[2]
     });
-    result = await instance.freeCancellation(2, checkInDate, checkOutDate, {
-      value: weiPriceCancellable, from: accounts[2]
+    result = await instance.book(2, checkInDate, checkOutDate, true, {
+      value: weiPriceCancellable,
+      from: accounts[2]
     });
     const bookingId = result.logs[0].args.bookingId;
 
-    result = await instance.freeCancellation(3, checkInDate, checkOutDate, {
-      value: weiPriceCancellable, from: accounts[2]
+    result = await instance.book(3, checkInDate, checkOutDate, true, {
+      value: weiPriceCancellable,
+      from: accounts[2]
     });
 
     // Book a room in the future
-    const futureBooking = new Date(
-      new Date().getFullYear(),
-      new Date().getMonth()+2,
-      new Date().getDate()
-    )/1000;
-    const futureBookingCO= new Date(
-      new Date().getFullYear(),
-      new Date().getMonth() + 2,
-      new Date().getDate()+1
-    )/1000;
-    result = await instance.freeCancellation(4, futureBooking, futureBookingCO, {
-      value: weiPriceCancellable, from: accounts[2]
+    const futureBookingCI =
+      new Date(
+        new Date().getFullYear(),
+        new Date().getMonth() + 2,
+        new Date().getDate()
+      ) / 1000;
+    const futureBookingCO =
+      new Date(
+        new Date().getFullYear(),
+        new Date().getMonth() + 2,
+        new Date().getDate() + 1
+      ) / 1000;
+    result = await instance.book(4, futureBookingCI, futureBookingCO, true, {
+      value: weiPriceCancellable,
+      from: accounts[2]
     });
 
     // Cancel one of the room
-    await instance.cancel(bookingId, {from: accounts[2]});
+    await instance.cancel(bookingId, { from: accounts[2] });
 
     // Future date
     const inOneMonth =
@@ -246,10 +262,13 @@ contract("Booking", function(accounts) {
       ) / 1000;
 
     // Get availability
-    const withdraw = await instance.withdraw(inOneMonth, {from: accounts[0]});
+    const withdraw = await instance.withdraw(inOneMonth, { from: accounts[1] });
 
     // Assert
-    assert.equal(withdraw.logs[0].args["0"].toString(), (weiPriceCancellable * 2).toString());
+    assert.equal(
+      withdraw.logs[0].args["0"].toString(),
+      (weiPriceCancellable * 2).toString()
+    );
     assert.equal(withdraw.logs[0].args["2"].length, 1); // Only the future booking should remain
   });
-});
+*/});

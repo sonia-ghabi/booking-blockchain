@@ -1,50 +1,59 @@
-import Web3 from 'web3';
-import TruffleContract from 'truffle-contract';
-import Hotel from '../contracts/Hotel.json';
-import HotelFactory from '../contracts/HotelFactory.json';
+import Web3 from "web3";
+import TruffleContract from "truffle-contract";
+import Hotel from "../contracts/Hotel.json";
+import HotelFactory from "../contracts/HotelFactory.json";
 
-const NETWORK_ADDR = 'http://localhost:7545';
+const NETWORK_ADDR = process.env.REACT_APP_NETWORK_ADDR;
 
-const ethereum = window.ethereum;
-let contracts = {};
-let instances = {};
-
-let address;
 let web3;
+
+// Initialize local static variables
+// Keep all the contracts definitions
+let contracts = {};
+// Keep all the contract instances
+let instances = {};
+// The user address
+let address;
+
+// Initialize web3 provider (through Metamask if possible)
+const ethereum = window.ethereum;
 ethereum.enable().then(enArr => {
-  if (typeof ethereum !== 'undefined') {
+  if (typeof ethereum !== "undefined") {
     web3 = new Web3(ethereum);
     address = enArr[0];
+
+    // Subscribe to an event to update the user address when changing wallets
     web3.currentProvider.publicConfigStore.on(
-      'update',
+      "update",
       ({ selectedAddress }) => {
         address = selectedAddress;
       }
     );
   } else {
-    console.log('No web3? You should consider trying MetaMask!');
-    // fallback - use your fallback strategy (local node / hosted node + in-dapp id mgmt / fail)
+    console.log("No web3? You should consider trying MetaMask!");
     web3 = new Web3(new Web3.providers.HttpProvider(NETWORK_ADDR));
     address = web3.eth.defaultAccount;
   }
 
+  // Load Hotel Factory contract and instanciate it
   contracts.Factory = TruffleContract(HotelFactory);
-
   contracts.Factory.setProvider(ethereum);
   contracts.Factory.deployed().then(factoryInstance => {
     instances.Factory = factoryInstance;
   });
 
+  // Load Hotel contract (to be instantiated by hotel id)
   contracts.Hotel = TruffleContract(Hotel);
   contracts.Hotel.setProvider(ethereum);
 });
 
+// Resolves when contracts are ready and loaded
 export function isReady() {
   const check = res => {
     if (instances.Factory && contracts.Hotel) {
       res();
     } else {
-      setTimeout(() => check(res), 500);
+      setTimeout(() => check(res), 200);
     }
   };
   return new Promise((res, rej) => {
@@ -52,34 +61,37 @@ export function isReady() {
   });
 }
 
+// Class with functions to interact with our contracts
 class ContractsManager {
+  // Creates a new hotel
   async createHotel(name, stars, description) {
     const nameHex = web3.utils.asciiToHex(name);
-    if (!instances || !instances.Factory) {
-      throw new Error('Factory contract not loaded');
-    }
     const txReceipt = await this.execute(
       instances.Factory.createContract,
       nameHex,
       stars,
       description
     );
-    console.log(txReceipt);
+
     return txReceipt.logs[0].args.contractAddress;
   }
 
-  async getHotel(address) {
-    /*const hotelContract = new web3.eth.Contract(Hotel.abi, address);
-    const tx = await hotelContract.methods.getHotel().call();
-    return {
-      id: address,
-      name: web3.utils.hexToAscii(tx.hotelName),
-      stars: Number(tx.hotelStars),
-      description: tx.hotelDescription
-    }*/
-
+  // Add a room to a hotel
+  async addRoom(price, cancellable, address) {
+    const weiPrice = web3.utils.toWei(price);
+    const weiCancellable = web3.utils.toWei(cancellable);
     const hotelContract = await contracts.Hotel.at(address);
+    const txReceipt = await this.execute(
+      hotelContract.addRoom,
+      weiPrice,
+      weiCancellable
+    );
+    return txReceipt.logs[0].args.roomId.toString(10);
+  }
 
+  // Get a hotel details from it's address
+  async getHotel(address) {
+    const hotelContract = await contracts.Hotel.at(address);
     const tx = await hotelContract.getHotel.call();
     return {
       id: address,
@@ -89,20 +101,17 @@ class ContractsManager {
     };
   }
 
+  // List all the hotels
   listHotels() {
-    if (!instances || !instances.Factory) {
-      throw new Error('Factory contract not loaded');
-    }
     return instances.Factory.listAllHotels.call({ from: address });
   }
 
+  // List all the hotels belonging to the caller
   listMyHotels() {
-    if (!instances || !instances.Factory) {
-      throw new Error('Factory contract not loaded');
-    }
     return instances.Factory.listMyHotels.call({ from: address });
   }
 
+  // Get all the rooms from a hotel
   async getRooms(address) {
     const hotelContract = await contracts.Hotel.at(address);
     const lastRoom = await hotelContract.currentRoomId();
@@ -122,34 +131,7 @@ class ContractsManager {
     }));
   }
 
-  /*getBalance() {
-    var address =  "0x69300b549410774281d88450DB9F27c317ac5A4b";// "0xFcaD0ca9C3BEfC0Ec8acCA441260a5795648c9b5"; //
-    var meta;
-    App.contracts.Booking.deployed().then(function(instance) {
-      meta = instance;
-      return web3.eth.getBalance(instance.address, function(err, transactionHash) {
-        if (!err)
-          console.log(transactionHash.c[0]); 
-      });
-    });
-  }*/
-
-  async addRoom(price, cancellable, address) {
-    const weiPrice = web3.utils.toWei(price);
-    const weiCancellable = web3.utils.toWei(cancellable);
-    const hotelContract = await contracts.Hotel.at(address);
-    try {
-      const txReceipt = await this.execute(
-        hotelContract.addRoom,
-        price,
-        cancellable
-      );
-      return txReceipt.logs[0].args.roomId.toString(10);
-    } catch (e) {
-      console.error(e);
-    }
-  }
-
+  // Book a room
   async book(
     roomId,
     hotelAddress,
@@ -175,72 +157,107 @@ class ContractsManager {
     }
   }
 
+  // Check a room availability between two dates
   async checkAvailability(hotelAddress, roomId, start, end) {
     const hotelContract = await contracts.Hotel.at(hotelAddress);
-    try {
-      return await hotelContract.isAvailableForDates.call(roomId, start, end);
-    } catch (e) {
-      console.error(e);
-      throw e;
-    }
+    return await hotelContract.isAvailableForDates.call(roomId, start, end);
   }
 
+  // Get all the available rooms between two dates
   async availableRooms(hotelAddress, start, end) {
     const hotelContract = await contracts.Hotel.at(hotelAddress);
-    try {
-      const roomArray = await hotelContract.availableRoomsForDates.call(
-        start,
-        end
-      );
-      return roomArray
-        .map((available, i) => {
-          if (available) return i + 1;
-        })
-        .filter(v => v !== undefined);
-    } catch (e) {
-      console.error(e);
-      throw e;
-    }
+    const roomArray = await hotelContract.availableRoomsForDates.call(
+      start,
+      end
+    );
+    return roomArray
+      .map((available, i) => {
+        if (available) return i + 1;
+      })
+      .filter(v => v !== undefined);
   }
 
+  // Cancels a booking
   async cancel(hotelAddress, bookingId) {
     const hotelContract = await contracts.Hotel.at(hotelAddress);
     try {
-      return await hotelContract.cancel.call(bookingId);
+      return await hotelContract.cancel(bookingId, { from: address });
     } catch (e) {
       console.error(e);
       throw e;
     }
   }
 
+  // Get all bookings from one hotel for a user
   async myBookings(hotelAddress) {
     const hotelContract = await contracts.Hotel.at(hotelAddress);
-    return hotelContract.myBookings({ from: address });
+    return hotelContract.listUserBookings({ from: address });
   }
 
+  // Get all the bookings from many hotels for a user
+  async getMyBookingsFromHotels(hotelIds) {
+    const bookingsArray = await Promise.all(
+      hotelIds.map(async id => {
+        const bookings = await this.myBookings(id);
+        const bookingObjects = [];
+        for (let i = 0; i < bookings.id.length; i++) {
+          bookingObjects.push({
+            id: bookings.id[i],
+            hotel: id,
+            roomId: bookings.roomId[i].toString(),
+            amountPaid: web3.utils.fromWei(bookings.amountPaid[i]),
+            status: bookings.status[i].toString(),
+            startDate: bookings.startDate[i].toString(),
+            endDate: bookings.endDate[i].toString()
+          });
+        }
+        return bookingObjects;
+      })
+    );
+
+    return bookingsArray.reduce((acc, arr) => acc.concat(arr), []);
+  }
+
+  // Get the total a user can withdraw from all it's hotels
+  async getWithdrawalTotal(hotelIds) {
+    const withdrawalPromises = hotelIds.map(id => this.withdrawal(id));
+    const total = (await Promise.all(withdrawalPromises)).reduce((acc, BN) => {
+      return acc + Number(web3.utils.fromWei(BN));
+    }, 0);
+
+    return total;
+  }
+
+  // Get how much a user can withdraw (dry run) or execute the actual withdrawal
   async withdrawal(hotelAddress, dryRun = true) {
     const hotelContract = await contracts.Hotel.at(hotelAddress);
 
     if (dryRun) {
-      return hotelContract.withdraw.call(Date.now(), {
+      return hotelContract.withdraw.call(Math.floor(Date.now() / 1000), {
         from: address
       });
     } else {
-      console.log(address);
-      return hotelContract.withdraw(
-        Math.floor(Date.now() / 100, { from: address })
-      );
+      return hotelContract.withdraw(Math.floor(Date.now() / 1000), {
+        from: address
+      });
     }
   }
 
+  // Convert wei to ETH
+  fromWei(wei) {
+    return web3.utils.fromWei(wei);
+  }
+
+  // execute a smart contract function with the from parameter
   execute(func, ...param) {
     return func(...param, { from: address });
   }
 
+  // execute a smart contract function with the from parameter and a value to pay
   executeWithMoney(func, price, ...param) {
     const req = {
       from: address,
-      value: web3.utils.toWei(price, 'ether')
+      value: web3.utils.toWei(price, "ether")
     };
 
     return func(...param, req);

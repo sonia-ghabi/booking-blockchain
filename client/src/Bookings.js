@@ -1,31 +1,31 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import Typography from '@material-ui/core/Typography';
-import withStyles from '@material-ui/core/styles/withStyles';
-import Paper from '@material-ui/core/Paper';
-import Table from '@material-ui/core/Table';
-import TableBody from '@material-ui/core/TableBody';
-import TableCell from '@material-ui/core/TableCell';
-import TableHead from '@material-ui/core/TableHead';
-import TableRow from '@material-ui/core/TableRow';
-import Button from '@material-ui/core/Button';
-import moment from 'moment';
-import Contracts, { isReady } from './lib/contracts';
-import Header from './components/header';
+import React from "react";
+import { Link } from "react-router-dom";
+import Typography from "@material-ui/core/Typography";
+import withStyles from "@material-ui/core/styles/withStyles";
+import Paper from "@material-ui/core/Paper";
+import Table from "@material-ui/core/Table";
+import TableBody from "@material-ui/core/TableBody";
+import TableCell from "@material-ui/core/TableCell";
+import TableHead from "@material-ui/core/TableHead";
+import TableRow from "@material-ui/core/TableRow";
+import Button from "@material-ui/core/Button";
+import moment from "moment";
+import Contracts, { isReady } from "./lib/contracts";
+import Header from "./components/header";
 
 const styles = theme => ({
   layout: {
-    width: 'auto',
+    width: "auto",
     marginLeft: theme.spacing.unit * 2,
     marginRight: theme.spacing.unit * 2,
     [theme.breakpoints.up(800 + theme.spacing.unit * 2 * 2)]: {
       width: 800,
-      marginLeft: 'auto',
-      marginRight: 'auto'
+      marginLeft: "auto",
+      marginRight: "auto"
     }
   },
   paper: {
-    position: 'relative',
+    position: "relative",
     marginTop: theme.spacing.unit * 3,
     marginBottom: theme.spacing.unit * 3,
     padding: theme.spacing.unit * 2,
@@ -36,60 +36,51 @@ const styles = theme => ({
     }
   },
   addressRow: {
-    width: '150px',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis'
+    width: "150px",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis"
   }
 });
+
+const cancelBooking = (hotelId, bookingId, callback) => {
+  return () => {
+    const cancel = Contracts.cancel(hotelId, bookingId);
+    callback(cancel);
+    return cancel;
+  };
+};
 
 class MyHotels extends React.Component {
   constructor(props) {
     super(props);
 
     this.state = {
+      hotelIds: [],
       bookings: []
     };
+
+    this.getBookings = this.getBookings.bind(this);
   }
 
   async componentDidMount() {
     await isReady();
     const hotelIds = (await Contracts.listHotels()) || [];
 
-    const bookings = await this.getBookings(hotelIds);
+    this.setState({
+      hotelIds
+    });
+
+    this.getBookings();
+  }
+
+  async getBookings() {
+    const hotelIds = this.state.hotelIds;
+    const bookings = await Contracts.getMyBookingsFromHotels(hotelIds);
     console.log(bookings);
     this.setState({
       bookings
     });
-  }
-
-  async getBookings(hotelIds) {
-    const bookingsArray = await Promise.all(
-      hotelIds.map(async id => {
-        const bookings = await Contracts.myBookings(id);
-        const bookingObjects = [];
-        for (let i = 0; i < bookings.hotel.length; i++) {
-          bookingObjects.push({
-            id: bookings.id[i],
-            hotel: bookings.hotel[i],
-            roomId: bookings.roomId[i].toString(),
-            amountPaid: bookings.amountPaid[i].toString(),
-            status: bookings.status[i].toString(),
-            startDate: moment.unix(bookings.startDate[i].toString())
-          });
-        }
-        console.log(bookingObjects);
-        return bookingObjects;
-      })
-    );
-
-    return bookingsArray.reduce((acc, arr) => acc.concat(arr), []);
-  }
-
-  cancelBooking(hotelId, bookingId) {
-    return () => {
-      return Contracts.cancel(hotelId, bookingId);
-    };
   }
   /*
 address customer;
@@ -103,6 +94,7 @@ BookingStatus status;
   render() {
     const { classes } = this.props;
     const { bookings } = this.state;
+
     return (
       <>
         <Header />
@@ -128,26 +120,17 @@ BookingStatus status;
                       <div className={classes.addressRow}>{booking.hotel}</div>
                     </TableCell>
                     <TableCell>
-                      {moment(booking.startDate).format('D/M/YYYY')}
+                      {moment.unix(booking.startDate).format("D/M/YYYY")}
                     </TableCell>
                     <TableCell>
-                      {moment(booking.endDate).format('D/M/YYYY')}
+                      {moment.unix(booking.endDate).format("D/M/YYYY")}
                     </TableCell>
                     <TableCell align="right">{booking.amountPaid}</TableCell>
                     <TableCell align="right">
-                      {booking.status === '2' ? (
-                        <Button
-                          variant="outlined"
-                          onClick={this.cancelBooking(
-                            booking.hotel,
-                            booking.id
-                          )}
-                        >
-                          Cancel
-                        </Button>
-                      ) : (
-                        'Non-cancellable'
-                      )}
+                      <BookingAction
+                        booking={booking}
+                        onUpdate={this.getBookings}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -159,5 +142,31 @@ BookingStatus status;
     );
   }
 }
+
+const BookingAction = ({ booking, onUpdate }) => {
+  switch (booking.status) {
+    case "0":
+      return "Cancelled";
+    case "1":
+    case "3":
+      return "Confirmed";
+    case "2": {
+      if (booking.startDate <= moment().unix()) {
+        return "Confirmed";
+      }
+
+      return (
+        <Button
+          variant="outlined"
+          onClick={cancelBooking(booking.hotel, booking.id, onUpdate)}
+        >
+          Cancel
+        </Button>
+      );
+    }
+    default:
+      return "Oups";
+  }
+};
 
 export default withStyles(styles)(MyHotels);

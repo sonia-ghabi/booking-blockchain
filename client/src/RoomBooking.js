@@ -1,38 +1,37 @@
-import React, { Component } from 'react';
-import MomentUtils from '@date-io/moment';
-import moment from 'moment';
-import { MuiPickersUtilsProvider, DatePicker } from 'material-ui-pickers';
-import Typography from '@material-ui/core/Typography';
-import withStyles from '@material-ui/core/styles/withStyles';
-import Paper from '@material-ui/core/Paper';
-import Button from '@material-ui/core/Button';
-import Table from '@material-ui/core/Table';
-import TableBody from '@material-ui/core/TableBody';
-import TableCell from '@material-ui/core/TableCell';
-import TableHead from '@material-ui/core/TableHead';
-import TableRow from '@material-ui/core/TableRow';
+import React, { Component } from "react";
+import MomentUtils from "@date-io/moment";
+import moment from "moment";
+import { MuiPickersUtilsProvider, DatePicker } from "material-ui-pickers";
+import Typography from "@material-ui/core/Typography";
+import withStyles from "@material-ui/core/styles/withStyles";
+import Paper from "@material-ui/core/Paper";
+import Button from "@material-ui/core/Button";
+import Table from "@material-ui/core/Table";
+import TableBody from "@material-ui/core/TableBody";
+import TableCell from "@material-ui/core/TableCell";
+import TableHead from "@material-ui/core/TableHead";
+import TableRow from "@material-ui/core/TableRow";
 
-import Header from './components/header';
-import Stars from './components/stars';
-import Contracts, { isReady } from './lib/contracts';
-import Database, { firebaseDb } from './lib/database';
+import Header from "./components/header";
+import Stars from "./components/stars";
+import Contracts, { isReady } from "./lib/contracts";
 
 const styles = theme => ({
   appBar: {
-    position: 'relative'
+    position: "relative"
   },
   layout: {
-    width: 'auto',
+    width: "auto",
     marginLeft: theme.spacing.unit * 2,
     marginRight: theme.spacing.unit * 2,
     [theme.breakpoints.up(800 + theme.spacing.unit * 2 * 2)]: {
       width: 800,
-      marginLeft: 'auto',
-      marginRight: 'auto'
+      marginLeft: "auto",
+      marginRight: "auto"
     }
   },
   paper: {
-    position: 'relative',
+    position: "relative",
     marginTop: theme.spacing.unit * 3,
     marginBottom: theme.spacing.unit * 3,
     padding: theme.spacing.unit * 2,
@@ -43,12 +42,12 @@ const styles = theme => ({
     }
   },
   addRoomFab: {
-    position: 'absolute',
+    position: "absolute",
     right: theme.spacing.unit * 2,
     top: theme.spacing.unit * 2
   },
   errorSnack: {
-    position: 'static',
+    position: "static",
     marginTop: theme.spacing.unit * 3,
     marginBottom: theme.spacing.unit * 3
   },
@@ -66,19 +65,19 @@ class HotelSummary extends Component {
     super(props);
     this.state = {
       addingRoom: false,
-      price: '',
-      priceCancellable: '',
+      price: "",
+      priceCancellable: "",
       userHotels: [],
       startDate: moment()
         .utc()
-        .startOf('day'),
+        .startOf("day"),
       endDate: moment()
         .utc()
-        .startOf('day'),
+        .startOf("day"),
       hotelSummary: {
         id: null,
-        name: '',
-        description: '',
+        name: "",
+        description: "",
         stars: 0
       },
       rooms: []
@@ -109,7 +108,7 @@ class HotelSummary extends Component {
   };
 
   handleDateChange = key => date => {
-    this.setState({ [key]: date.utc().startOf('day') });
+    this.setState({ [key]: date.utc().startOf("day") });
     this.getAvailableRooms();
   };
 
@@ -133,7 +132,7 @@ class HotelSummary extends Component {
   bookRoom(roomId, price, isCancellableBooking = false) {
     return async () => {
       const { startDate, endDate } = this.state;
-      const diff = endDate.diff(startDate, 'days') || 1;
+      const diff = endDate.diff(startDate, "days") || 1;
       console.log(`${diff} nights`);
 
       const res = await Contracts.book(
@@ -174,20 +173,20 @@ class HotelSummary extends Component {
           </Paper>
           <Paper
             className={classes.paper}
-            style={{ display: 'flex', justifyContent: 'space-between' }}
+            style={{ display: "flex", justifyContent: "space-between" }}
           >
             <MuiPickersUtilsProvider utils={MomentUtils}>
               <DatePicker
                 label="Checkin"
                 value={startDate}
-                onChange={this.handleDateChange('startDate')}
+                onChange={this.handleDateChange("startDate")}
                 animateYearScrolling={false}
                 minDate={new Date()}
               />
               <DatePicker
                 label="Checkout"
                 value={endDate}
-                onChange={this.handleDateChange('endDate')}
+                onChange={this.handleDateChange("endDate")}
                 animateYearScrolling={false}
                 minDate={startDate}
               />
