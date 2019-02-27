@@ -1,28 +1,29 @@
-import React from "react";
-import { Link } from "react-router-dom";
-import Typography from "@material-ui/core/Typography";
-import withStyles from "@material-ui/core/styles/withStyles";
-import Card from "@material-ui/core/Card";
-import CardActionArea from "@material-ui/core/CardActionArea";
-import CardActions from "@material-ui/core/CardActions";
-import CardContent from "@material-ui/core/CardContent";
-import CardMedia from "@material-ui/core/CardMedia";
-import Button from "@material-ui/core/Button";
-import Database from "./lib/database.js";
-import Contracts, { isReady } from "./lib/contracts";
-import Header from "./components/header";
+import React from 'react';
+import { Link } from 'react-router-dom';
+import Typography from '@material-ui/core/Typography';
+import withStyles from '@material-ui/core/styles/withStyles';
+import Card from '@material-ui/core/Card';
+import CardActionArea from '@material-ui/core/CardActionArea';
+import CardActions from '@material-ui/core/CardActions';
+import CardContent from '@material-ui/core/CardContent';
+import CardMedia from '@material-ui/core/CardMedia';
+import Button from '@material-ui/core/Button';
+import Contracts, { isReady } from './lib/contracts';
+import Header from './components/header';
+import PageLoader from './components/pageLoader';
+
 const styles = theme => ({
   appBar: {
-    position: "relative"
+    position: 'relative'
   },
   layout: {
-    width: "auto",
+    width: 'auto',
     marginLeft: theme.spacing.unit * 2,
     marginRight: theme.spacing.unit * 2,
     [theme.breakpoints.up(600 + theme.spacing.unit * 2 * 2)]: {
       width: 600,
-      marginLeft: "auto",
-      marginRight: "auto"
+      marginLeft: 'auto',
+      marginRight: 'auto'
     }
   },
   card: {
@@ -30,7 +31,7 @@ const styles = theme => ({
     marginBottom: theme.spacing.unit * 3
   },
   media: {
-    height: "200px"
+    height: '200px'
   }
 });
 
@@ -44,18 +45,13 @@ class HotelList extends React.Component {
   }
 
   async componentDidMount() {
-    /*await new Promise(res =>
-      setTimeout(() => {
-        res();
-      }, 1000)
-    );*/
     await isReady();
 
     const hotelIds = (await Contracts.listHotels()) || [];
 
     const hotels = await Promise.all(
       hotelIds.map(id => {
-        return Database.readData("hotel", id);
+        return Contracts.getHotel(id);
       })
     );
 
@@ -70,6 +66,7 @@ class HotelList extends React.Component {
       <>
         <Header />
         <main className={classes.layout}>
+          {!this.state.hotels.length && <PageLoader />}
           {this.state.hotels.map((hotel, index) => (
             <Card className={classes.card} key={hotel.id}>
               <CardActionArea>

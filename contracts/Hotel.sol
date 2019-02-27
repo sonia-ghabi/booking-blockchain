@@ -6,8 +6,8 @@ contract HotelFactory {
 
     event newHotelEvent(address contractAddress);
 
-    function createContract (bytes32 name) public {
-        Hotel hotel = new Hotel(msg.sender, name);
+    function createContract (bytes32 name, uint8 stars, string memory description) public {
+        Hotel hotel = new Hotel(msg.sender, name, stars, description);
         address hotelContractAddress = address(hotel);
         hotelContracts.push(hotelContractAddress);
         hotelOwnerships[msg.sender].push(hotelContractAddress);
@@ -56,6 +56,8 @@ contract Hotel {
     uint public dateStart;
     address payable owner;
     bytes32 name;
+    uint8 stars;
+    string description;
     uint public currentRoomId = 0;
     uint96 public numBooking = 0;
     mapping(uint => Room) public roomList; // Id will start from 1
@@ -70,15 +72,20 @@ contract Hotel {
     event Cancelled(bytes32 bookingId);
     event Booked(bytes32 bookingId);
 
+    event Created(address payable owner, bytes32 name, uint8 stars, string description);
+
     // **************
     // PUBLIC METHODS
     // **************
 
-    constructor(address payable _owner, bytes32 _name) public {
+    constructor(address payable _owner, bytes32 _name, uint8 _stars, string memory _description) public {
         name = _name;
+        stars = _stars;
+        description = _description;
         owner = _owner;
         uint day = 60*60*24;
         dateStart = (now/day)*day; // floor to date, don't keep the time
+        emit Created(owner, name, stars, description);
     }
 
     function book(uint roomId, uint start, uint end, bool isCancellable) payable public returns (bytes32)
@@ -281,14 +288,47 @@ contract Hotel {
         return (roomList[roomId].priceCancellable, roomList[roomId].price, roomList[roomId].booked);
     }
 
+    function getHotel()
+        view
+        public 
+		returns (bytes32 hotelName, uint8 hotelStars, string memory hotelDescription)
+    {
+        return (name, stars, description);
+    }
+
     event userBooking(address hotel, uint roomId, BookingStatus status, uint startDate);
-    function myBookings() public {
+    function myBookings() view public
+    returns (bytes32[] memory id, address[] memory hotel, uint[] memory roomId, uint[] memory amountPaid, BookingStatus[] memory status, uint[] memory startDate, uint[] memory endDate) {
         bytes32[] memory userBookingIds = userBookingsMap[msg.sender].bookingIds;
+
+        uint totalCount = userBookingsMap[msg.sender].count;
+
+        bytes32[] memory bookingIds = new bytes32[](totalCount);
+        address[] memory hotelAddresses = new address[](totalCount);
+        uint[] memory roomIds = new uint[](totalCount);
+        uint[] memory amountPaid = new uint[](totalCount);
+        BookingStatus[] memory statuses = new BookingStatus[](totalCount);
+        uint[] memory startDates = new uint[](totalCount);
+        uint[] memory endDates = new uint[](totalCount);
+
         for (uint i = 0; i < userBookingsMap[msg.sender].count; i++)
         {
             BookingData memory bookingData = allBookings[userBookingIds[i]];
-            emit userBooking(owner, bookingData.roomId, bookingData.status, bookingData.dateTimeStart);
+            bookingIds[i] = userBookingIds[i];
+            hotelAddresses[i] = owner;
+            roomIds[i] = bookingData.roomId;
+            amountPaid[i] = bookingData.amountPaid;
+            statuses[i] = bookingData.status;
+            startDates[i] = bookingData.startDate;
+            endDates[i] = bookingData.endDate;
         }
+        return (bookingIds, hotelAddresses, roomIds, amountPaid, statuses, startDates, endDates);
+
+        /*for (uint i = 0; i < userBookingsMap[msg.sender].count; i++)
+        {
+            BookingData memory bookingData = allBookings[userBookingIds[i]];
+            emit userBooking(owner, bookingData.roomId, bookingData.status, bookingData.dateTimeStart);
+        }*/
     }   
 
     event withdrawEvent(uint, uint, bytes32[]);

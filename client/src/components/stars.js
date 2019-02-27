@@ -13,9 +13,11 @@ const styles = theme => ({
 
 const star = ({ rating = 0, classes }) => (
   <div className={classes.stars}>
-    {Array(rating).map((r, i) => (
-      <StarRate key={i} />
-    ))}
+    {Array(rating)
+      .fill(0)
+      .map((_, i) => (
+        <StarRate key={i} />
+      ))}
   </div>
 );
 
