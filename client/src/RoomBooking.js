@@ -1,54 +1,53 @@
-import React, { Component } from 'react';
-import MomentUtils from '@date-io/moment';
-import moment from 'moment';
-import { MuiPickersUtilsProvider, DatePicker } from 'material-ui-pickers';
-import Typography from '@material-ui/core/Typography';
-import withStyles from '@material-ui/core/styles/withStyles';
-import Paper from '@material-ui/core/Paper';
-import Button from '@material-ui/core/Button';
-import Table from '@material-ui/core/Table';
-import TableBody from '@material-ui/core/TableBody';
-import TableCell from '@material-ui/core/TableCell';
-import TableHead from '@material-ui/core/TableHead';
-import TableRow from '@material-ui/core/TableRow';
+import React, { Component } from "react";
+import MomentUtils from "@date-io/moment";
+import moment from "moment";
+import { MuiPickersUtilsProvider, DatePicker } from "material-ui-pickers";
+import Typography from "@material-ui/core/Typography";
+import withStyles from "@material-ui/core/styles/withStyles";
+import Paper from "@material-ui/core/Paper";
+import Button from "@material-ui/core/Button";
+import Table from "@material-ui/core/Table";
+import TableBody from "@material-ui/core/TableBody";
+import TableCell from "@material-ui/core/TableCell";
+import TableHead from "@material-ui/core/TableHead";
+import TableRow from "@material-ui/core/TableRow";
 
-import Header from './components/header';
-import Stars from './components/stars';
-import Contracts from './lib/contracts';
-import Database from './lib/database';
+import Header from "./components/header";
+import Stars from "./components/stars";
+import Contracts, { isReady } from "./lib/contracts";
 
 const styles = theme => ({
   appBar: {
-    position: 'relative'
+    position: "relative"
   },
   layout: {
-    width: 'auto',
+    width: "auto",
     marginLeft: theme.spacing.unit * 2,
     marginRight: theme.spacing.unit * 2,
-    [theme.breakpoints.up(600 + theme.spacing.unit * 2 * 2)]: {
-      width: 600,
-      marginLeft: 'auto',
-      marginRight: 'auto'
+    [theme.breakpoints.up(800 + theme.spacing.unit * 2 * 2)]: {
+      width: 800,
+      marginLeft: "auto",
+      marginRight: "auto"
     }
   },
   paper: {
-    position: 'relative',
+    position: "relative",
     marginTop: theme.spacing.unit * 3,
     marginBottom: theme.spacing.unit * 3,
     padding: theme.spacing.unit * 2,
-    [theme.breakpoints.up(600 + theme.spacing.unit * 3 * 2)]: {
+    [theme.breakpoints.up(800 + theme.spacing.unit * 3 * 2)]: {
       marginTop: theme.spacing.unit * 6,
       marginBottom: theme.spacing.unit * 6,
       padding: theme.spacing.unit * 3
     }
   },
   addRoomFab: {
-    position: 'absolute',
+    position: "absolute",
     right: theme.spacing.unit * 2,
     top: theme.spacing.unit * 2
   },
   errorSnack: {
-    position: 'static',
+    position: "static",
     marginTop: theme.spacing.unit * 3,
     marginBottom: theme.spacing.unit * 3
   },
@@ -66,62 +65,35 @@ class HotelSummary extends Component {
     super(props);
     this.state = {
       addingRoom: false,
-      price: '',
-      priceCancellable: '',
+      price: "",
+      priceCancellable: "",
       userHotels: [],
-      startDate: moment().startOf('day'),
-      endDate: moment().startOf('day'),
+      startDate: moment()
+        .utc()
+        .startOf("day"),
+      endDate: moment()
+        .utc()
+        .startOf("day"),
       hotelSummary: {
         id: null,
-        name: '',
-        description: '',
-        stars: 0,
-        rooms: []
-      }
+        name: "",
+        description: "",
+        stars: 0
+      },
+      rooms: []
     };
-    this.contracts = new Contracts();
-    this.db = new Database();
 
     this.hotelAddress = this.props.match.params.address;
 
-    this.checkAvailability = this.checkAvailability.bind(this);
+    //this.checkAvailability = this.checkAvailability.bind(this);
+    this.getAvailableRooms = this.getAvailableRooms.bind(this);
   }
 
   async componentDidMount() {
-    const hotelSummary = await this.db.readData('hotel', this.hotelAddress);
-
-    hotelSummary.rooms = [];
-
+    await isReady();
+    const hotelSummary = await Contracts.getHotel(this.hotelAddress);
     this.setState({
       hotelSummary
-    });
-
-    // Get Rooms
-    const db = this.db.getDB();
-    db.collection('hotel')
-      .doc(hotelSummary.id)
-      .collection('rooms')
-      .onSnapshot(querySnapshot => {
-        const hotel = this.state.hotelSummary;
-        const rooms = [];
-
-        querySnapshot.forEach(function(doc) {
-          const room = doc.data();
-          room.id = doc.id;
-          rooms.push(room);
-        });
-
-        hotel.rooms = rooms;
-
-        this.setState({
-          hotelSummary: hotel
-        });
-      });
-
-    this.contracts.listHotel().then(hotelIds => {
-      this.setState({
-        userHotels: hotelIds
-      });
     });
   }
 
@@ -136,30 +108,35 @@ class HotelSummary extends Component {
   };
 
   handleDateChange = key => date => {
-    this.setState({ [key]: date.startOf('day') });
+    this.setState({ [key]: date.utc().startOf("day") });
+    this.getAvailableRooms();
   };
 
-  async checkAvailability() {
+  async getAvailableRooms() {
     const { startDate, endDate } = this.state;
-    const roomId = this.state.hotelSummary.rooms[0].id;
-    const availability = await this.contracts.checkAvailability(
+
+    const availableIds = await Contracts.availableRooms(
       this.hotelAddress,
-      roomId,
       startDate.unix(),
       endDate.unix()
     );
-    console.log(availability);
-    return availability;
+    const rooms = await Contracts.getRooms(this.hotelAddress);
+
+    const availableRooms = rooms.filter(({ id }) => availableIds.includes(id));
+
+    this.setState({
+      rooms: availableRooms
+    });
   }
 
   bookRoom(roomId, price, isCancellableBooking = false) {
     return async () => {
       const { startDate, endDate } = this.state;
-      const diff = endDate.diff(startDate, 'days') || 1;
+      const diff = endDate.diff(startDate, "days") || 1;
       console.log(`${diff} nights`);
 
-      const res = await this.contracts.book(
-        0,
+      const res = await Contracts.book(
+        roomId,
         this.hotelAddress,
         isCancellableBooking,
         diff * price,
@@ -167,14 +144,15 @@ class HotelSummary extends Component {
         endDate.unix()
       );
       console.log(res);
+      this.getAvailableRooms();
       return res;
     };
   }
 
   render() {
     const { classes } = this.props;
-    const { startDate, endDate } = this.state;
-    const { id, name, description, stars, rooms } = this.state.hotelSummary;
+    const { startDate, endDate, rooms } = this.state;
+    const { id, name, description, stars } = this.state.hotelSummary;
     return (
       <>
         <Header />
@@ -195,25 +173,25 @@ class HotelSummary extends Component {
           </Paper>
           <Paper
             className={classes.paper}
-            style={{ display: 'flex', justifyContent: 'space-between' }}
+            style={{ display: "flex", justifyContent: "space-between" }}
           >
             <MuiPickersUtilsProvider utils={MomentUtils}>
               <DatePicker
                 label="Checkin"
                 value={startDate}
-                onChange={this.handleDateChange('startDate')}
+                onChange={this.handleDateChange("startDate")}
                 animateYearScrolling={false}
                 minDate={new Date()}
               />
               <DatePicker
                 label="Checkout"
                 value={endDate}
-                onChange={this.handleDateChange('endDate')}
+                onChange={this.handleDateChange("endDate")}
                 animateYearScrolling={false}
                 minDate={startDate}
               />
             </MuiPickersUtilsProvider>
-            <Button variant="outlined" onClick={this.checkAvailability}>
+            <Button variant="outlined" onClick={this.getAvailableRooms}>
               Check availability
             </Button>
           </Paper>

@@ -8,8 +8,10 @@ import CardActions from '@material-ui/core/CardActions';
 import CardContent from '@material-ui/core/CardContent';
 import CardMedia from '@material-ui/core/CardMedia';
 import Button from '@material-ui/core/Button';
-import Database from './lib/database.js';
+import Contracts, { isReady } from './lib/contracts';
 import Header from './components/header';
+import PageLoader from './components/pageLoader';
+
 const styles = theme => ({
   appBar: {
     position: 'relative'
@@ -42,23 +44,19 @@ class HotelList extends React.Component {
     };
   }
 
-  componentDidMount() {
-    this.db = new Database();
-    // Get Hotels
-    const db = this.db.getDB();
-    db.collection('hotel').onSnapshot(querySnapshot => {
-      const hotels = [];
+  async componentDidMount() {
+    await isReady();
 
-      querySnapshot.forEach(function(doc) {
-        const hotel = doc.data();
-        hotel.id = doc.id;
-        hotels.push(hotel);
-      });
+    const hotelIds = (await Contracts.listHotels()) || [];
 
-      this.setState({
-        hotels
-      });
-      console.log(hotels);
+    const hotels = await Promise.all(
+      hotelIds.map(id => {
+        return Contracts.getHotel(id);
+      })
+    );
+
+    this.setState({
+      hotels
     });
   }
 
@@ -68,6 +66,7 @@ class HotelList extends React.Component {
       <>
         <Header />
         <main className={classes.layout}>
+          {!this.state.hotels.length && <PageLoader />}
           {this.state.hotels.map((hotel, index) => (
             <Card className={classes.card} key={hotel.id}>
               <CardActionArea>

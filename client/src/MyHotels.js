@@ -1,28 +1,28 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import Typography from '@material-ui/core/Typography';
-import withStyles from '@material-ui/core/styles/withStyles';
-import Card from '@material-ui/core/Card';
-import CardActionArea from '@material-ui/core/CardActionArea';
-import CardActions from '@material-ui/core/CardActions';
-import CardContent from '@material-ui/core/CardContent';
-import CardMedia from '@material-ui/core/CardMedia';
-import Button from '@material-ui/core/Button';
-import Database from './lib/database.js';
-import Contracts from './lib/contracts';
-import Header from './components/header';
+import React from "react";
+import { Link } from "react-router-dom";
+import Typography from "@material-ui/core/Typography";
+import withStyles from "@material-ui/core/styles/withStyles";
+import Card from "@material-ui/core/Card";
+import CardActionArea from "@material-ui/core/CardActionArea";
+import CardContent from "@material-ui/core/CardContent";
+import Button from "@material-ui/core/Button";
+import Contracts, { isReady } from "./lib/contracts";
+import Header from "./components/header";
+import PageLoader from "./components/pageLoader";
+import { totalmem } from "os";
+
 const styles = theme => ({
   appBar: {
-    position: 'relative'
+    position: "relative"
   },
   layout: {
-    width: 'auto',
+    width: "auto",
     marginLeft: theme.spacing.unit * 2,
     marginRight: theme.spacing.unit * 2,
     [theme.breakpoints.up(600 + theme.spacing.unit * 2 * 2)]: {
       width: 600,
-      marginLeft: 'auto',
-      marginRight: 'auto'
+      marginLeft: "auto",
+      marginRight: "auto"
     }
   },
   card: {
@@ -30,7 +30,7 @@ const styles = theme => ({
     marginBottom: theme.spacing.unit * 3
   },
   media: {
-    height: '200px'
+    height: "200px"
   }
 });
 
@@ -38,24 +38,25 @@ class MyHotels extends React.Component {
   constructor(props) {
     super(props);
 
-    this.db = new Database();
-    this.contracts = new Contracts();
-
     this.state = {
-      hotels: []
+      hotels: [],
+      withdrawalAmount: 0,
+      withdrawalByHotel: {}
     };
+
+    this.getWithdrawalTotal = this.getWithdrawalTotal.bind(this);
   }
 
   async componentDidMount() {
-    await new Promise(res => setTimeout(() => res(), 1000));
-    const userHotelsIds = await this.contracts.listHotel();
-    this.setState({
-      userHotels: userHotelsIds
-    });
+    await isReady();
+    const userHotelsIds = (await Contracts.listMyHotels()) || [];
+
+    this.getWithdrawalTotal(userHotelsIds);
+    this.withdrawByHotel(userHotelsIds);
 
     const hotels = await Promise.all(
       userHotelsIds.map(id => {
-        return this.db.readData('hotel', id);
+        return Contracts.getHotel(id);
       })
     );
 
@@ -64,12 +65,53 @@ class MyHotels extends React.Component {
     });
   }
 
+  async getWithdrawalTotal(hotelIds) {
+    const withdrawalAmount = await Contracts.getWithdrawalTotal(hotelIds);
+    console.log(withdrawalAmount);
+    this.setState({
+      withdrawalAmount
+    });
+  }
+
+  withdraw(hotelId) {
+    return async () => {
+      await Contracts.withdrawal(hotelId, false);
+    };
+  }
+
+  async withdrawByHotel(hotelId) {
+    const withdrawalArray =
+      (await Promise.all(
+        hotelId.map(async id => {
+          return [id, await Contracts.withdrawal(id)];
+        })
+      )) || [];
+
+    const withdrawalByHotel = withdrawalArray.reduce((acc, [id, amount]) => {
+      acc[id] = Contracts.fromWei(amount) + "ETH";
+      return acc;
+    }, {});
+    console.log(withdrawalByHotel);
+    this.setState({
+      withdrawalByHotel
+    });
+  }
+
   render() {
     const { classes } = this.props;
+    const { withdrawalAmount } = this.state;
     return (
       <>
         <Header />
         <main className={classes.layout}>
+          <Card className={classes.card}>
+            <CardContent>
+              <Typography gutterBottom variant="h5" component="h2">
+                Total you can withdraw: {withdrawalAmount} ETH
+              </Typography>
+            </CardContent>
+          </Card>
+          {!this.state.hotels.length && <PageLoader />}
           {this.state.hotels.map(hotel => (
             <Card className={classes.card} key={hotel.id}>
               <CardActionArea>
@@ -81,6 +123,11 @@ class MyHotels extends React.Component {
                   </CardContent>
                 </Link>
               </CardActionArea>
+              {this.state.withdrawalByHotel[hotel.id] && (
+                <Button onClick={this.withdraw(hotel.id)}>
+                  withdraw {this.state.withdrawalByHotel[hotel.id]}
+                </Button>
+              )}
             </Card>
           ))}
         </main>
