@@ -12,7 +12,7 @@ export default function() {
   return (
     <>
       <CssBaseline />
-      <BrowserRouter>
+      <BrowserRouter basename={process.env.PUBLIC_URL}>
         <Switch>
           <Route exact path="/book/:address" component={RoomBooking} />
           <Route exact path="/myhotels" component={MyHotels} />
