@@ -14,7 +14,7 @@
 importScripts("https://storage.googleapis.com/workbox-cdn/releases/3.6.3/workbox-sw.js");
 
 importScripts(
-  "/booking-blockchain/precache-manifest.8140b391445cb1c89244a95ec3330a64.js"
+  "/booking-blockchain/precache-manifest.343b1fa3856a313c01d466a4ce864947.js"
 );
 
 workbox.clientsClaim();
