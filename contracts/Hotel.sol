@@ -1,6 +1,8 @@
 pragma solidity ^0.5.0;
 
+// The factory for the hotel contract
 contract HotelFactory {
+
     // All the hotel contracts
     address[] hotelContracts;
 
@@ -50,7 +52,7 @@ contract Hotel {
         uint roomId;
         uint priceCancellable;
         uint price;
-        bool[] booked;
+        mapping(uint => bool) booked;
     }
 
     struct UserBookings {
@@ -58,6 +60,7 @@ contract Hotel {
         bytes32[] bookingIds;
     }
 
+    uint constant day = 60*60*24;
     uint public creationDate; 
     address payable owner;
     bytes32 name;
@@ -67,11 +70,10 @@ contract Hotel {
     uint96 public numBooking = 0;
     mapping(uint => Room) public roomList; // Id will start from 1
     mapping(bytes32 => BookingData) public allBookings;
-    mapping(address => UserBookings) userBookingsMap;
+    mapping(address => UserBookings) userBookingsMap; // Bookings Ids by user
     bytes32[] public pendingFreeCancellation;
     uint pendingFreeCancellationCount = 0;
-    uint constant day = 60*60*24;
-
+    
     event FreeCancel(bytes32 bookingId);
     event Cancelled(bytes32 bookingId);
     event Booked(bytes32 bookingId);
@@ -91,7 +93,7 @@ contract Hotel {
         stars = _stars;
         description = _description;
         owner = _owner;
-        creationDate = (now/day)*day; // floor to date, don't keep the time
+        creationDate = (now/day) * day; // floor to date, don't keep the time
         emit CreatedHotel(owner, name, stars, description);
     }
 
@@ -102,9 +104,17 @@ contract Hotel {
         returns (bytes32)
     {
         // Make sure the roomId exist and the date are usable
-        require(currentRoomId > 0 && roomId > 0 && roomId <= currentRoomId && start < end && creationDate <= start);
-        
-        //require(start%day == 0);
+        require(
+            currentRoomId > 0 && 
+            roomId > 0 && 
+            roomId <= currentRoomId && 
+            start < end && 
+            creationDate <= start &&
+            start % day == 0 && // time must be 00h00
+            end % day == 0,
+            "Invalid parameters"
+        );
+    
         // Set variables depending on whether the booking is cancellable
         uint price;
         BookingStatus status;
@@ -120,15 +130,13 @@ contract Hotel {
         }          
 
         // Do not proceed if the price of the booking is wrong
-        if (msg.value != ((end - start)/ 60 / 60 / 24) * price)
+        if (msg.value != ((end - start)/ day) * price)
         {
             revert("Wrong price");
         }
         
         // Mark the room as booked for the days of the booking
-        uint dayStart;
-        uint dayEnd;
-        (dayStart, dayEnd) = markAsBooked(roomId, start, end);
+        markAsBooked(roomId, start, end);
         
         // Save the booking data
         bytes32 bookingId = generateBookingId(msg.sender);
@@ -169,9 +177,7 @@ contract Hotel {
             revert("Booking already started, cannot be cancelled");
             
         // Mark the room as available
-        uint dayStart = convertToDayNumber(bookingData.dateTimeStart);	
-        uint dayEnd = convertToDayNumber(bookingData.dateTimeEnd);
-        markAsAvailable(bookingData.roomId, dayStart, dayEnd);
+        markAsAvailable(bookingData.roomId, bookingData.dateTimeStart, bookingData.dateTimeEnd);
 	    
         // Mark the booking as canceled
         allBookings[bookingId].status = BookingStatus.CANCELED;
@@ -187,12 +193,10 @@ contract Hotel {
         view
 		returns (bool)
 	{
-	    // Convert the date to day number (0 being the date the contract was deployed)
-        uint dayStart = convertToDayNumber(start);	
-        uint dayEnd = convertToDayNumber(end);
-        
-        // Delegate the call 
-        return isAvailableForDayNumbers(roomId, dayStart, dayEnd);
+	    for (uint i = start; i < end ; i+=day)
+            if (roomList[roomId].booked[i])
+                return false;
+        return true;
     }
 
     // Get an array corresponding to available rooms
@@ -200,15 +204,19 @@ contract Hotel {
 		public
         view
 		returns (bool[] memory)
-	{       
-	    // Convert the date to day number (0 being the date the contract was deployed)
-        uint dayStart = convertToDayNumber(start);
-        uint dayEnd = convertToDayNumber(end);
-    
+	{     
+        // Data validation  
+        require(
+            start < end && 
+            creationDate <= start &&
+            start % day == 0 && // time must be 00h00
+            end % day == 0,
+            "Invalid parameters"
+        );
+
         bool[] memory availableRooms = new bool[](currentRoomId);
-        for(uint i = 0; i < currentRoomId; i++) {
-            availableRooms[i] = isAvailableForDayNumbers(i+1, dayStart, dayEnd);
-        }
+        for (uint i = 0; i < currentRoomId; i++)
+            availableRooms[i] = isAvailableForDates(i+1, start, end);
         return availableRooms;
     }
 
@@ -249,10 +257,8 @@ contract Hotel {
         public 
         returns (uint) 
     {
-        if (msg.sender != owner)
-        {
-            revert("Only owner can withdraw money from his hotel.");
-        }
+        // Data validation
+        require(msg.sender == owner, "Only owner can withdraw money from his hotel.");
 
         // Initialize
         uint amount = 0;
@@ -295,17 +301,12 @@ contract Hotel {
 		public 
 		returns (uint) 
 	{
-        // Make sure the sender is the hotel owner
-        if (price <= 0 && priceCancellable <= 0)
-        {
-            revert("Prices must be > 0");
-        }     
-        if (msg.sender != owner)
-        {
-            revert("Only owner can update hotel.");
-        }
+        // Make sure the sender is the hotel owner and the price is well set
+        require(price > 0 && priceCancellable > 0, "Prices must be > 0");
+        require(msg.sender == owner, "Only owner can update hotel.");
+        
         ++currentRoomId;
-        roomList[currentRoomId] = Room(currentRoomId, priceCancellable, price, new bool[](365));
+        roomList[currentRoomId] = Room(currentRoomId, priceCancellable, price);
         emit AddRoom(currentRoomId);
         return currentRoomId;
     }
@@ -314,9 +315,9 @@ contract Hotel {
     function getRoom(uint roomId) 
         view
 		public 
-		returns (uint priceCancellable, uint price, bool[] memory booked) 
+		returns (uint priceCancellable, uint price)
     {
-        return (roomList[roomId].priceCancellable, roomList[roomId].price, roomList[roomId].booked);
+        return (roomList[roomId].priceCancellable, roomList[roomId].price);
     }
 
     // Get the hotel information
@@ -339,64 +340,30 @@ contract Hotel {
     {
         // Update numBooking
         numBooking = numBooking + 1;
-        // requestId = ADDRESS_SENDER+ numRequests (0xADRRESSSENDER00000NUMREQUEST)
+
+        // Build the ID
         return bytes32((uint256(senderAddress) << 96) + numBooking);
-    }
-    
-    // Convert date to day number (0 being the contract creation day)
-    function convertToDayNumber(uint date) 
-    	internal 
-        view
-    	returns (uint)
-	{
-        return (date - creationDate) / 60 / 60 / 24;
-    }
-    
-    // Check whether the room is available for the given day numbers
-    function isAvailableForDayNumbers(uint roomId, uint dayStart, uint dayEnd) 
-    	internal 
-        view
-    	returns (bool)
-	{
-        for (uint i = dayStart; i <= dayEnd ; i++)
-        {
-            if (roomList[roomId].booked[i])
-                return false;
-        }
-        return true;
     }
 	
 	// Marks the room as booked
     function markAsBooked(uint roomId, uint start, uint end) 
 		internal 
-		returns (uint, uint) 
 	{
-	    // Convert the date to day number (0 being the date the contract was deployed)
-        uint dayStart = convertToDayNumber(start);	
-        uint dayEnd = convertToDayNumber(end);
-        
         // Check if the room is available
-        if (!isAvailableForDayNumbers(roomId, dayStart, dayEnd))
+        if (!isAvailableForDates(roomId, start, end))
             revert("Room not available");
             
         // Mark as booked
-        for (uint i = dayStart; i <= dayEnd ; i++)
-        {
+        for (uint i = start; i < end ; i+=day)
             roomList[roomId].booked[i] = true;
-        }
-        
-        // Return the day numbers
-        return (dayStart, dayEnd);
     }
 	
 	// Marks the room as available
-    function markAsAvailable(uint roomId, uint dayStart, uint dayEnd) 
+    function markAsAvailable(uint roomId, uint start, uint end) 
 		internal
 	{
         // Mark as available
-        for (uint i = dayStart; i <= dayEnd ; i++)
-        {
+        for (uint i = start; i < end ; i+=day)
             roomList[roomId].booked[i] = false;
-        }
     }
 }

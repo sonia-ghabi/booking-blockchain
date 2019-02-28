@@ -3,10 +3,10 @@ var Hotel = artifacts.require("Hotel");
 contract("Hotel", function(accounts) {
   // Set variables
   const date =
-    new Date(
+    new Date(Date.UTC(
       new Date().getFullYear(),
       new Date().getMonth(),
-      new Date().getDate()
+      new Date().getDate())
     ) / 1000; // Solidity uses date in ms
   const checkInDate = date + 60 * 60 * 24 * 1;
   const checkOutDate = date + 60 * 60 * 24 * 2;
@@ -22,11 +22,10 @@ contract("Hotel", function(accounts) {
     // Start a new instance
     instance = await Hotel.new(
       accounts[1],
-      web3.utils.asciiToHex("hotel"),
+      web3.utils.asciiToHex("hotel 1"),
       4,
       "This is an hotel"
     );
-
     // Add a room
     await instance.addRoom(weiPrice, weiPriceCancellable, {
       from: accounts[1]
@@ -200,7 +199,8 @@ contract("Hotel", function(accounts) {
     assert(!availableRooms[1]);
     assert(availableRooms[2]);
   });
-/*
+  
+  /*
   it("should withdraw correct amount", async () => {
     // Add other rooms
     await instance.addRoom(weiPrice, weiPriceCancellable, {
@@ -271,4 +271,5 @@ contract("Hotel", function(accounts) {
     );
     assert.equal(withdraw.logs[0].args["2"].length, 1); // Only the future booking should remain
   });
-*/});
+*/
+});

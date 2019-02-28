@@ -233,11 +233,11 @@ class ContractsManager {
     const hotelContract = await contracts.Hotel.at(hotelAddress);
 
     if (dryRun) {
-      return hotelContract.withdraw.call(Math.floor(Date.now() / 1000), {
+      return hotelContract.withdraw.call(/*For testing: Math.floor(Date.now() / 1000),*/ {
         from: address
       });
     } else {
-      return hotelContract.withdraw(Math.floor(Date.now() / 1000), {
+      return hotelContract.withdraw(/*For testing: Math.floor(Date.now() / 1000),*/ {
         from: address
       });
     }
