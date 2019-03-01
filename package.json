@@ -8,11 +8,13 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "migrate": "rimraf build; truffle migrate"
+    "migrate": "truffle migrate"
   },
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "rimraf": "^2.6.3"
+    "dotenv": "^6.2.0",
+    "rimraf": "^2.6.3",
+    "truffle-hdwallet-provider": "^1.0.4"
   }
 }
