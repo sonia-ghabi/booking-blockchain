@@ -1,13 +1,13 @@
 {
   "main.css": "/booking-blockchain/static/css/main.dda26559.chunk.css",
-  "main.js": "/booking-blockchain/static/js/main.e19952bc.chunk.js",
-  "main.js.map": "/booking-blockchain/static/js/main.e19952bc.chunk.js.map",
+  "main.js": "/booking-blockchain/static/js/main.ce9536d5.chunk.js",
+  "main.js.map": "/booking-blockchain/static/js/main.ce9536d5.chunk.js.map",
   "runtime~main.js": "/booking-blockchain/static/js/runtime~main.b9f7e65f.js",
   "runtime~main.js.map": "/booking-blockchain/static/js/runtime~main.b9f7e65f.js.map",
-  "static/js/2.d112a8ce.chunk.js": "/booking-blockchain/static/js/2.d112a8ce.chunk.js",
-  "static/js/2.d112a8ce.chunk.js.map": "/booking-blockchain/static/js/2.d112a8ce.chunk.js.map",
+  "static/js/2.c6709fb2.chunk.js": "/booking-blockchain/static/js/2.c6709fb2.chunk.js",
+  "static/js/2.c6709fb2.chunk.js.map": "/booking-blockchain/static/js/2.c6709fb2.chunk.js.map",
   "index.html": "/booking-blockchain/index.html",
-  "precache-manifest.18387c1be9498c0eca0dd8a97cafb345.js": "/booking-blockchain/precache-manifest.18387c1be9498c0eca0dd8a97cafb345.js",
+  "precache-manifest.afb165e5269553ca3e5dcaf7f9d37691.js": "/booking-blockchain/precache-manifest.afb165e5269553ca3e5dcaf7f9d37691.js",
   "service-worker.js": "/booking-blockchain/service-worker.js",
   "static/css/main.dda26559.chunk.css.map": "/booking-blockchain/static/css/main.dda26559.chunk.css.map"
 }
