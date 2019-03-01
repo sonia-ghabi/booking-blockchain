@@ -9,7 +9,6 @@ import Button from "@material-ui/core/Button";
 import Contracts, { isReady } from "./lib/contracts";
 import Header from "./components/header";
 import PageLoader from "./components/pageLoader";
-import { totalmem } from "os";
 
 const styles = theme => ({
   appBar: {

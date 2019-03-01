@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Switch, Route } from "react-router-dom";
+import { HashRouter, Switch, Route } from "react-router-dom";
 import CssBaseline from "@material-ui/core/CssBaseline";
 import HotelList from "./HotelList";
 import HotelCreation from "./HotelCreation";
@@ -12,7 +12,7 @@ export default function() {
   return (
     <>
       <CssBaseline />
-      <BrowserRouter basename={process.env.PUBLIC_URL}>
+      <HashRouter>
         <Switch>
           <Route exact path="/book/:address" component={RoomBooking} />
           <Route exact path="/myhotels" component={MyHotels} />
@@ -21,7 +21,7 @@ export default function() {
           <Route path="/manage/:address" component={ManageHotel} />
           <Route exact path="/" component={HotelList} />
         </Switch>
-      </BrowserRouter>
+      </HashRouter>
     </>
   );
 }

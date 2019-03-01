@@ -20,7 +20,7 @@ const Header = ({ classes }) => (
       </Typography>
       <div className={classes.spacer} />
       <Button color="inherit">
-        <Link to="/mybookings">🧳 My bookings</Link>
+        <Link to="/mybookings">🛏 My bookings</Link>
       </Button>
       <Button color="inherit">
         <Link to="/myhotels">🏨 My hotels</Link>

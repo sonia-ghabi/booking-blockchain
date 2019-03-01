@@ -95,7 +95,7 @@ class ContractsManager {
     const tx = await hotelContract.getHotel.call();
     return {
       id: address,
-      name: web3.utils.hexToAscii(tx.hotelName),
+      name: web3.utils.hexToUtf8(tx.hotelName),
       stars: Number(tx.hotelStars),
       description: tx.hotelDescription
     };
@@ -125,9 +125,8 @@ class ContractsManager {
 
     return rooms.map((txResult, index) => ({
       id: index + 1,
-      booked: txResult.booked,
-      price: web3.utils.fromWei(txResult.price),
-      priceCancellable: web3.utils.fromWei(txResult.priceCancellable)
+      price: this.fromWei(txResult.price),
+      priceCancellable: this.fromWei(txResult.priceCancellable)
     }));
   }
 
@@ -136,16 +135,18 @@ class ContractsManager {
     roomId,
     hotelAddress,
     isCancellableBooking,
+    days,
     price,
     dateStart,
     dateEnd
   ) {
     const hotelContract = await contracts.Hotel.at(hotelAddress);
 
+    const fullPrice = web3.utils.toBN(web3.utils.toWei(price)).mul(web3.utils.toBN(days));
     try {
       return this.executeWithMoney(
         hotelContract.book,
-        price.toString(),
+        fullPrice.toString(),
         roomId,
         dateStart,
         dateEnd,
@@ -205,7 +206,7 @@ class ContractsManager {
             id: bookings.id[i],
             hotel: id,
             roomId: bookings.roomId[i].toString(),
-            amountPaid: web3.utils.fromWei(bookings.amountPaid[i]),
+            amountPaid: this.fromWei(bookings.amountPaid[i]),
             status: bookings.status[i].toString(),
             startDate: bookings.startDate[i].toString(),
             endDate: bookings.endDate[i].toString()
@@ -222,7 +223,7 @@ class ContractsManager {
   async getWithdrawalTotal(hotelIds) {
     const withdrawalPromises = hotelIds.map(id => this.withdrawal(id));
     const total = (await Promise.all(withdrawalPromises)).reduce((acc, BN) => {
-      return acc + Number(web3.utils.fromWei(BN));
+      return acc + Number(this.fromWei(BN));
     }, 0);
 
     return total;
@@ -245,7 +246,7 @@ class ContractsManager {
 
   // Convert wei to ETH
   fromWei(wei) {
-    return web3.utils.fromWei(wei);
+    return web3.utils.fromWei(wei.toString());
   }
 
   // execute a smart contract function with the from parameter
@@ -257,7 +258,7 @@ class ContractsManager {
   executeWithMoney(func, price, ...param) {
     const req = {
       from: address,
-      value: web3.utils.toWei(price, "ether")
+      value: price
     };
 
     return func(...param, req);

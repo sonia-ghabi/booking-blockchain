@@ -132,7 +132,7 @@ class ManageHotel extends Component {
   }
 
   async saveRoom(hotelId, price, priceCancellable) {
-    const roomId = await Contracts.addRoom(price, priceCancellable, hotelId);
+    await Contracts.addRoom(price, priceCancellable, hotelId);
     this.loadRooms();
   }
 
@@ -144,7 +144,7 @@ class ManageHotel extends Component {
 
   render() {
     const { classes } = this.props;
-    const { id, name, description, stars } = this.state.hotelSummary;
+    const { name, description, stars } = this.state.hotelSummary;
     const { rooms } = this.state;
 
     return (

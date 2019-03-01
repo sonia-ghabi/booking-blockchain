@@ -109,12 +109,11 @@ class HotelSummary extends Component {
 
   handleDateChange = key => date => {
     this.setState({ [key]: date.utc().startOf("day") });
-    this.getAvailableRooms();
+    //this.getAvailableRooms();
   };
 
   async getAvailableRooms() {
     const { startDate, endDate } = this.state;
-
     const availableIds = await Contracts.availableRooms(
       this.hotelAddress,
       startDate.unix(),
@@ -139,7 +138,8 @@ class HotelSummary extends Component {
         roomId,
         this.hotelAddress,
         isCancellableBooking,
-        diff * price,
+        diff,
+        price,
         startDate.unix(),
         endDate.unix()
       );
@@ -152,7 +152,7 @@ class HotelSummary extends Component {
   render() {
     const { classes } = this.props;
     const { startDate, endDate, rooms } = this.state;
-    const { id, name, description, stars } = this.state.hotelSummary;
+    const { name, description, stars } = this.state.hotelSummary;
     return (
       <>
         <Header />
